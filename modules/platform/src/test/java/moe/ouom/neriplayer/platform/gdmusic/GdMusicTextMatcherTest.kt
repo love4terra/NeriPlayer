@@ -35,7 +35,8 @@ class GdMusicTextMatcherTest {
     @Test
     fun `version tags prevent remix or live mismatch`() {
         assertEquals(setOf(VersionTag.LIVE), GdMusicTextMatcher.extractVersionTags("晴天 (Live 现场版)"))
-        assertEquals(setOf(VersionTag.REMIX), GdMusicTextMatcher.extractVersionTags("晴天 (DJ Remix)"))
+        assertEquals(setOf(VersionTag.REMIX), GdMusicTextMatcher.extractVersionTags("晴天 (Remix)"))
+        assertEquals(setOf(VersionTag.REMIX, VersionTag.DJ), GdMusicTextMatcher.extractVersionTags("晴天 (DJ Remix)"))
 
         val target = SongMatchTarget(
             title = "晴天",

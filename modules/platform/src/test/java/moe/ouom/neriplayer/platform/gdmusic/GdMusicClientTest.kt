@@ -143,8 +143,10 @@ class GdMusicClientTest {
         nowMs += 20_000L
         assertFalse(limiter.isInCooldown())
 
-        // Prefetch stops at 36 while PRIMARY still works up to 50
-        repeat(GdMusicRateLimiter.PREFETCH_CEILING) {
+        // Pre-429 call consumed 1 slot; remaining prefetch stops at 36 while PRIMARY still works up to 50
+        val remainingPrefetch = limiter.remainingWindowSlots(RequestTier.PREFETCH)
+        assertEquals(GdMusicRateLimiter.PREFETCH_CEILING - 1, remainingPrefetch)
+        repeat(remainingPrefetch) {
             assertTrue(limiter.tryAcquireSlot(RequestTier.PREFETCH))
         }
         assertFalse(limiter.tryAcquireSlot(RequestTier.PREFETCH))
