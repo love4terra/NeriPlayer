@@ -71,11 +71,8 @@ import moe.ouom.neriplayer.core.player.lyrics.syncExternalTranslatedLyrics
 import moe.ouom.neriplayer.core.player.lyrics.updateExternalBluetoothLyricLine
 import moe.ouom.neriplayer.core.player.network.PlaybackNetworkResumeOwner
 import moe.ouom.neriplayer.core.player.service.notification.FlymeStatusBarLyricSupport
-import moe.ouom.neriplayer.data.model.netease.playback.NeteasePlaybackSourcePreferencePolicy
 import moe.ouom.neriplayer.data.model.playback.PlaybackAudioSource
 import moe.ouom.neriplayer.data.model.playback.PlayerEvent
-import moe.ouom.neriplayer.core.player.scrobble.NeteasePlaybackScrobbleController
-import moe.ouom.neriplayer.platform.scrobble.NeteaseWeblogReporter
 import moe.ouom.neriplayer.core.player.persistence.RestoredPlayerStatePreload
 import moe.ouom.neriplayer.core.player.persistence.applyRestoredStateSnapshot
 import moe.ouom.neriplayer.core.player.persistence.completeInitialRestoration
@@ -362,15 +359,7 @@ private fun PlayerManager.prepareInitializationSession(app: Application, effecti
         ioScope, AppPlaybackStatsWritePort, PlaybackStatsTracker(AppQueueSongIdentity::stableKey, readClearedAt = AppPlaybackStatsWritePort::clearedAt),
         AppPlaybackStatsPendingWrites.queue
     )
-    neteaseScrobbleController = runCatching { PlayerDependencies.repositories.neteaseClient }.getOrNull()?.let { client ->
-        NeteasePlaybackScrobbleController(
-            ioScopeProvider = { ioScope },
-            isScrobbleEnabled = { neteaseScrobbleEnabled },
-            isLocalScrobbleEnabled = { neteaseLocalScrobbleEnabled },
-            reporter = NeteaseWeblogReporter(client),
-            resolveTrack = ::createNeteaseScrobbleTrack
-        )
-    }
+    neteaseScrobbleController = createNeteaseScrobbleController()
     val appWasInForeground = usbExclusiveLivenessOwner.appInForeground
     usbExclusiveLivenessOwner.cancelJobs()
     usbExclusiveLivenessOwner = UsbExclusiveLivenessOwner(
@@ -445,17 +434,7 @@ private fun PlayerManager.applyInitialPlaybackPreferences(
         initialPlaybackPreferences.rememberLongFormPlaybackProgress
     keepPlaybackModeStateEnabled =
         initialPlaybackPreferences.keepPlaybackModeState
-    neteasePlaybackSourcePreference = NeteasePlaybackSourcePreferencePolicy.fromStorage(
-        initialPlaybackPreferences.neteasePlaybackSource
-    )
-    neteaseScrobbleEnabled =
-        initialPlaybackPreferences.neteaseScrobbleEnabled
-    neteaseLocalScrobbleEnabled =
-        initialPlaybackPreferences.neteaseLocalScrobbleEnabled
-    neteaseAutoSourceSwitchEnabled =
-        initialPlaybackPreferences.neteaseAutoSourceSwitch
-    neteaseLocalSourceFallbackEnabled =
-        initialPlaybackPreferences.neteaseLocalSourceFallback
+    applyInitialNeteaseSourceAndScrobblePreferences(initialPlaybackPreferences)
     playbackFadeInEnabled = initialPlaybackPreferences.playbackFadeIn
     playbackCrossfadeNextEnabled =
         initialPlaybackPreferences.playbackCrossfadeNext
@@ -1474,52 +1453,7 @@ private fun PlayerManager.observePlaybackSettings() {
             }
         }
     }
-    ioScope.launch {
-        settingsRepo.neteasePlaybackSourceFlow.collect { source ->
-            val previousSource = neteasePlaybackSourcePreference
-            neteasePlaybackSourcePreference = source
-            if (previousSource != source) {
-                scheduleQualityRefresh(
-                    source = PlaybackAudioSource.NETEASE,
-                    reason = "netease_playback_source_changed"
-                )
-            }
-        }
-    }
-    ioScope.launch {
-        settingsRepo.neteaseScrobbleEnabledFlow.collect { enabled ->
-            neteaseScrobbleEnabled = enabled
-        }
-    }
-    ioScope.launch {
-        settingsRepo.neteaseLocalScrobbleEnabledFlow.collect { enabled ->
-            neteaseLocalScrobbleEnabled = enabled
-        }
-    }
-    ioScope.launch {
-        settingsRepo.neteaseAutoSourceSwitchFlow.collect { enabled ->
-            val previousEnabled = neteaseAutoSourceSwitchEnabled
-            neteaseAutoSourceSwitchEnabled = enabled
-            if (!previousEnabled && enabled) {
-                scheduleQualityRefresh(
-                    source = PlaybackAudioSource.NETEASE,
-                    reason = "netease_auto_source_switch_enabled"
-                )
-            }
-        }
-    }
-    ioScope.launch {
-        settingsRepo.neteaseLocalSourceFallbackFlow.collect { enabled ->
-            val previousEnabled = neteaseLocalSourceFallbackEnabled
-            neteaseLocalSourceFallbackEnabled = enabled
-            if (!previousEnabled && enabled) {
-                scheduleQualityRefresh(
-                    source = PlaybackAudioSource.NETEASE,
-                    reason = "netease_local_source_fallback_enabled"
-                )
-            }
-        }
-    }
+    observeNeteaseSourceAndScrobbleSettings()
     ioScope.launch {
         settingsRepo.stopOnBluetoothDisconnectFlow.collect { enabled ->
             stopOnBluetoothDisconnectEnabled = enabled

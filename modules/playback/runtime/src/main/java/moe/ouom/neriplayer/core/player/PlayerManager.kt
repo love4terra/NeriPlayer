@@ -45,8 +45,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import moe.ouom.neriplayer.core.player.scrobble.NeteasePlaybackScrobbleController
 import moe.ouom.neriplayer.data.model.netease.playback.NeteaseAudioSourcePreference
-import moe.ouom.neriplayer.data.model.server.isServerSong
-import moe.ouom.neriplayer.platform.scrobble.NeteaseScrobbleTrack
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -1530,66 +1528,14 @@ object PlayerManager {
         lastTrackEndHandledAtMs = SystemClock.elapsedRealtime()
     }
 
-    internal fun syncPlaybackStatsPlayingState(
-        playing: Boolean,
-        reason: String
-    ) {
-        playbackStatsOwner.onPlayingChanged(playing, reason, writesEnabled = initialized)
-        if (initialized) {
-            neteaseScrobbleController?.onPlayingChanged(playing)
-        }
-    }
+    internal fun syncPlaybackStatsPlayingState(playing: Boolean, reason: String) =
+        syncPlaybackStatsPlayingStateImpl(playing, reason)
 
-    internal fun syncPlaybackStatsEnginePlayingState(isPlaying: Boolean) {
-        playbackStatsOwner.onEnginePlayingChanged(isPlaying, playbackProgressAdvanceReported, writesEnabled = initialized)
-        if (initialized) {
-            neteaseScrobbleController?.onEnginePlayingChanged(isPlaying, playbackProgressAdvanceReported)
-        }
-    }
+    internal fun syncPlaybackStatsEnginePlayingState(isPlaying: Boolean) =
+        syncPlaybackStatsEnginePlayingStateImpl(isPlaying)
 
-    internal fun drainPlaybackStatsPersistJobBlocking(reason: String) {
-        playbackStatsOwner.drainBlocking(reason, writesEnabled = initialized)
-    }
-
-    internal fun flushPlaybackStatsBlockingImpl(
-        reason: String,
-        stopTracking: Boolean = false
-    ) {
-        playbackStatsOwner.flushBlocking(reason, stopTracking, writesEnabled = initialized)
-        if (initialized && stopTracking) {
-            neteaseScrobbleController?.flushOnStopOrRelease()
-        }
-    }
-
-    internal fun flushPlaybackStatsAsyncImpl(
-        reason: String,
-        stopTracking: Boolean = false
-    ) {
-        playbackStatsOwner.flushAsync(reason, stopTracking, writesEnabled = initialized)
-        if (initialized && stopTracking) {
-            neteaseScrobbleController?.flushOnStopOrRelease()
-        }
-    }
-
-    internal fun createNeteaseScrobbleTrack(song: SongItem): NeteaseScrobbleTrack? {
-        if (isBiliTrack(song) || isYouTubeMusicTrack(song) || song.isServerSong()) {
-            return null
-        }
-        val isLocal = isLocalSong(song)
-        val songId = if (!isLocal && song.id > 0L) song.id else null
-        if (!isLocal && songId == null) {
-            return null
-        }
-        return NeteaseScrobbleTrack(
-            songId = songId,
-            title = song.name,
-            artist = song.artist,
-            durationMs = song.durationMs,
-            isLocal = isLocal,
-            matchedLyricSource = song.matchedLyricSource,
-            matchedSongId = song.matchedSongId
-        )
-    }
+    internal fun drainPlaybackStatsPersistJobBlocking(reason: String) =
+        drainPlaybackStatsPersistJobBlockingImpl(reason)
 
     /**
      */
