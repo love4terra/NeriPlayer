@@ -445,11 +445,11 @@ class AutoSettingsGeneratedTest {
             AutoSettingsMetadata.requireSetting(SettingsKeys.NETEASE_PLAYBACK_SOURCE).keyName
         )
         assertEquals(
-            AutoSettingsSchema.playback.neteaseScrobbleEnabled.key,
+            "netease_scrobble_enabled",
             AutoSettingsMetadata.requireSetting(SettingsKeys.NETEASE_SCROBBLE_ENABLED).keyName
         )
         assertEquals(
-            AutoSettingsSchema.playback.neteaseLocalScrobbleEnabled.key,
+            "netease_local_scrobble_enabled",
             AutoSettingsMetadata.requireSetting(SettingsKeys.NETEASE_LOCAL_SCROBBLE_ENABLED).keyName
         )
         assertEquals(

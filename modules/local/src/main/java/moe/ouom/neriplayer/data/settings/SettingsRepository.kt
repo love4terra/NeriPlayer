@@ -670,10 +670,10 @@ class SettingsRepository(private val context: Context) {
         dataStoreSettingFlow { it[SettingsKeys.NETEASE_LOCAL_SOURCE_FALLBACK] ?: false }
 
     val neteaseScrobbleEnabledFlow: Flow<Boolean> =
-        settingFlow(AutoSettingsSchema.playback.neteaseScrobbleEnabled)
+        dataStoreSettingFlow { it[SettingsKeys.NETEASE_SCROBBLE_ENABLED] ?: true }
 
     val neteaseLocalScrobbleEnabledFlow: Flow<Boolean> =
-        settingFlow(AutoSettingsSchema.playback.neteaseLocalScrobbleEnabled)
+        dataStoreSettingFlow { it[SettingsKeys.NETEASE_LOCAL_SCROBBLE_ENABLED] ?: true }
 
     val stopOnBluetoothDisconnectFlow: Flow<Boolean> =
         dataStoreSettingFlow { it[SettingsKeys.STOP_ON_BLUETOOTH_DISCONNECT] ?: true }
@@ -836,20 +836,14 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun setNeteaseScrobbleEnabled(enabled: Boolean) {
-        setSetting(
-            setting = AutoSettingsSchema.playback.neteaseScrobbleEnabled,
-            value = enabled
-        )
+        context.dataStore.edit { it[SettingsKeys.NETEASE_SCROBBLE_ENABLED] = enabled }
         updatePlaybackPreferenceSnapshot(context) {
             it.copy(neteaseScrobbleEnabled = enabled)
         }
     }
 
     suspend fun setNeteaseLocalScrobbleEnabled(enabled: Boolean) {
-        setSetting(
-            setting = AutoSettingsSchema.playback.neteaseLocalScrobbleEnabled,
-            value = enabled
-        )
+        context.dataStore.edit { it[SettingsKeys.NETEASE_LOCAL_SCROBBLE_ENABLED] = enabled }
         updatePlaybackPreferenceSnapshot(context) {
             it.copy(neteaseLocalScrobbleEnabled = enabled)
         }

@@ -9,7 +9,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.mockito.ArgumentCaptor
+import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.times
@@ -104,15 +104,17 @@ class NeteaseWeblogReporterTest {
     fun `reporter posts startplay and play weblog payloads when logged in`(): Unit = runBlocking {
         val client = mock(NeteaseClient::class.java)
         `when`(client.hasLogin()).thenReturn(true)
-        val captor = ArgumentCaptor.forClass(String::class.java)
-        `when`(client.reportWeblogCancellable(captor.capture())).thenReturn("""{"code":200}""")
+        val payloads = mutableListOf<String>()
+        `when`(client.reportWeblogCancellable(anyString())).thenAnswer { invocation ->
+            payloads += invocation.getArgument<String>(0)
+            """{"code":200}"""
+        }
 
         val reporter = NeteaseWeblogReporter(client)
         assertTrue(reporter.sendStartPlay(186016L))
         assertFalse(reporter.sendPlay(186016L, playedMs = 15_000L, durationMs = 269_000L, NeteaseWeblogEndReason.UI))
         assertTrue(reporter.sendPlay(186016L, playedMs = 45_200L, durationMs = 269_000L, NeteaseWeblogEndReason.PLAY_END))
 
-        val payloads = captor.allValues
         assertEquals(2, payloads.size)
 
         val startObj = JSONArray(payloads[0]).getJSONObject(0)
