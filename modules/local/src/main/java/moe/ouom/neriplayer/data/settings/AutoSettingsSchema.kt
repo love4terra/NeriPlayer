@@ -1453,13 +1453,13 @@ object AutoSettingsSchema {
         @AutoSetting(
             key = "coloros_lockscreen_lyrics_enabled",
             type = SettingValueType.Boolean,
-            defaultBoolean = false,
+            defaultBoolean = true,
             order = 30,
             ui = SettingUiType.Custom
         )
         val colorOsLockscreenLyricsEnabled = autoSwitchSetting(
             key = "coloros_lockscreen_lyrics_enabled",
-            defaultValue = false,
+            defaultValue = true,
             titleRes = CoreCommonR.string.settings_coloros_lockscreen_lyrics_enabled,
             descriptionRes = CoreCommonR.string.settings_coloros_lockscreen_lyrics_desc,
             icon = AutoSettingIcon.AutoAwesome

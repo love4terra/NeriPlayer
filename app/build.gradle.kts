@@ -98,7 +98,8 @@ android {
     println("buildUUID: $buildUUID")
 
     defaultConfig {
-        applicationId = "moe.ouom.neriplayer"
+        // ColorOS 系统内置媒体白名单包名，无需 Root/Shizuku 即可触发锁屏/流体云歌词
+        applicationId = "com.gaana"
         val inviteScheme = "neriplayer"
         manifestPlaceholders["listenTogetherInviteScheme"] = inviteScheme
         buildConfigField("String", "LISTEN_TOGETHER_INVITE_SCHEME", "\"$inviteScheme\"")
@@ -119,7 +120,7 @@ android {
         val releaseSigningConfig = signingConfigs.getByName("release")
 
         debug {
-            applicationIdSuffix = ".debug"
+            // 调试包不附加 .debug 后缀，确保 Fork APK Build 产物也保持 com.gaana 包名
             val inviteScheme = "neriplayer-debug"
             manifestPlaceholders["listenTogetherInviteScheme"] = inviteScheme
             buildConfigField("String", "LISTEN_TOGETHER_INVITE_SCHEME", "\"$inviteScheme\"")

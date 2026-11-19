@@ -45,7 +45,7 @@ internal fun ColorOsLockscreenLyricsSetting(
     onHighlightFinished: (() -> Unit)?,
 ) {
     val scope = rememberCoroutineScope()
-    val enabled by repository.colorOsLockscreenLyricsEnabledFlow.collectAsState(initial = false)
+    val enabled by repository.colorOsLockscreenLyricsEnabledFlow.collectAsState(initial = true)
     var showConfiguration by rememberSaveable { mutableStateOf(false) }
     AutoSettingSpecListItem(
         setting = AutoSettingsSchema.lyrics.colorOsLockscreenLyricsEnabled,
