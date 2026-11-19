@@ -1,6 +1,7 @@
 package moe.ouom.neriplayer.core.player.url
 
 import moe.ouom.neriplayer.core.player.PlayerManager
+import moe.ouom.neriplayer.data.model.netease.playback.NeteaseAudioSourcePreference
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
@@ -12,12 +13,14 @@ class PlayerManagerNeteaseCacheKeyTest {
         val legacyKey = PlayerManager.buildNeteasePlaybackCacheKey(
             songId = 123L,
             preferredQuality = "exhigh",
-            useFallbackNamespace = false
+            useFallbackNamespace = false,
+            sourceNamespace = ""
         )
         val fallbackKey = PlayerManager.buildNeteasePlaybackCacheKey(
             songId = 123L,
             preferredQuality = "exhigh",
-            useFallbackNamespace = true
+            useFallbackNamespace = true,
+            sourceNamespace = ""
         )
 
         assertEquals("netease-123-exhigh", legacyKey)
@@ -32,7 +35,8 @@ class PlayerManagerNeteaseCacheKeyTest {
             PlayerManager.buildNeteasePlaybackCacheKey(
                 songId = 123L,
                 preferredQuality = "   ",
-                useFallbackNamespace = false
+                useFallbackNamespace = false,
+                sourceNamespace = ""
             )
         )
         assertEquals(
@@ -40,7 +44,8 @@ class PlayerManagerNeteaseCacheKeyTest {
             PlayerManager.buildNeteasePlaybackCacheKey(
                 songId = 123L,
                 preferredQuality = "   ",
-                useFallbackNamespace = true
+                useFallbackNamespace = true,
+                sourceNamespace = ""
             )
         )
     }
@@ -58,7 +63,8 @@ class PlayerManagerNeteaseCacheKeyTest {
             PlayerManager.buildNeteasePlaybackCacheKey(
                 songId = 123L,
                 preferredQuality = "exhigh",
-                useFallbackNamespace = false
+                useFallbackNamespace = false,
+                sourceNamespace = ""
             )
         )
         assertNotEquals(
@@ -66,8 +72,34 @@ class PlayerManagerNeteaseCacheKeyTest {
             PlayerManager.buildNeteasePlaybackCacheKey(
                 songId = 123L,
                 preferredQuality = "exhigh",
-                useFallbackNamespace = true
+                useFallbackNamespace = true,
+                sourceNamespace = ""
             )
         )
+        assertNotEquals(
+            previewKey,
+            PlayerManager.buildNeteasePlaybackCacheKey(
+                songId = 123L,
+                preferredQuality = "exhigh",
+                useFallbackNamespace = false,
+                sourceNamespace = NeteaseAudioSourcePreference.GD_MUSIC_FIRST.cacheNamespace()
+            )
+        )
+    }
+
+    @Test
+    fun gdMusicSourceNamespacesIsolateFromOfficialAndEachOther() {
+        val keys = NeteaseAudioSourcePreference.entries.map { pref ->
+            PlayerManager.buildNeteasePlaybackCacheKey(
+                songId = 123L,
+                preferredQuality = "exhigh",
+                useFallbackNamespace = false,
+                sourceNamespace = pref.cacheNamespace()
+            )
+        }
+
+        assertEquals(keys.size, keys.toSet().size)
+        assertEquals("netease-123-exhigh-gd_first_v1", keys[NeteaseAudioSourcePreference.GD_MUSIC_FIRST.ordinal])
+        assertEquals("netease-123-exhigh", keys[NeteaseAudioSourcePreference.OFFICIAL_ONLY.ordinal])
     }
 }

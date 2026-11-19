@@ -20,6 +20,18 @@ import java.util.Collections
 
 class NeteasePlaybackScrobbleControllerTest {
 
+    private suspend fun awaitPayloadCount(
+        payloads: List<String>,
+        expectedCount: Int,
+        timeoutMs: Long = 5_000L
+    ) {
+        val deadline = System.nanoTime() + timeoutMs * 1_000_000L
+        while (payloads.size < expectedCount && System.nanoTime() < deadline) {
+            delay(10)
+        }
+        assertEquals(expectedCount, payloads.size)
+    }
+
     private fun testSong(id: Long = 186016L, name: String = "晴天"): SongItem = SongItem(
         id = id,
         name = name,
@@ -63,7 +75,7 @@ class NeteasePlaybackScrobbleControllerTest {
 
             controller.onSongChanged(testSong())
             controller.onEnginePlayingChanged(isPlaying = true, progressAdvanced = true)
-            delay(50)
+            awaitPayloadCount(payloads, 1)
 
             // Play 20s then pause for 60s (pause duration must NOT count)
             nowMs += 20_000L
@@ -75,7 +87,7 @@ class NeteasePlaybackScrobbleControllerTest {
             nowMs += 15_000L
 
             controller.onSongChanged(testSong(id = 186017L, name = "七里香"))
-            delay(50)
+            awaitPayloadCount(payloads, 2)
 
             assertEquals(2, payloads.size)
             val startObj = JSONArray(payloads[0]).getJSONObject(0)
@@ -126,19 +138,19 @@ class NeteasePlaybackScrobbleControllerTest {
             // Short skip (<30s) -> only startplay, no play log
             controller.onSongChanged(testSong(id = 1L, name = "A"))
             controller.onEnginePlayingChanged(isPlaying = true, progressAdvanced = true)
-            delay(30)
+            awaitPayloadCount(payloads, 1)
             nowMs += 10_000L
             controller.onTrackEnded()
-            delay(30)
+            delay(50)
             assertTrue(payloads.none { JSONArray(it).getJSONObject(0).getString("action") == "play" })
 
             // Full play (>30s) -> reports playend
             controller.onSongChanged(testSong(id = 2L, name = "B"))
             controller.onEnginePlayingChanged(isPlaying = true, progressAdvanced = true)
-            delay(30)
+            awaitPayloadCount(payloads, 2)
             nowMs += 120_000L
             controller.onTrackEnded()
-            delay(30)
+            awaitPayloadCount(payloads, 3)
 
             val lastPlay = JSONArray(payloads.last()).getJSONObject(0)
             assertEquals("play", lastPlay.getString("action"))
