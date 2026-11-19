@@ -6,12 +6,17 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import moe.ouom.neriplayer.core.player.buildNeteaseScrobbleTrack
+import moe.ouom.neriplayer.data.model.SongIdentity
 import moe.ouom.neriplayer.data.model.SongItem
+import moe.ouom.neriplayer.data.model.stableKey
 import moe.ouom.neriplayer.platform.netease.api.client.NeteaseClient
 import moe.ouom.neriplayer.platform.scrobble.NeteaseScrobbleTrack
 import moe.ouom.neriplayer.platform.scrobble.NeteaseWeblogReporter
 import org.json.JSONArray
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.Mockito.mock
@@ -159,5 +164,97 @@ class NeteasePlaybackScrobbleControllerTest {
         } finally {
             scope.cancel()
         }
+    }
+
+    @Test
+    fun `initial playback starts tracking when onPlayingChanged(true) fires after pre-advance onIsPlayingChanged(true)`(): Unit = runBlocking {
+        val client = mock(NeteaseClient::class.java)
+        `when`(client.hasLogin()).thenReturn(true)
+        val payloads = Collections.synchronizedList(mutableListOf<String>())
+        `when`(client.reportWeblogCancellable(org.mockito.ArgumentMatchers.anyString())).thenAnswer { invocation ->
+            payloads += invocation.getArgument<String>(0)
+            """{"code":200}"""
+        }
+
+        var nowMs = 10_000L
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        try {
+            val controller = NeteasePlaybackScrobbleController(
+                ioScopeProvider = { scope },
+                isScrobbleEnabled = { true },
+                isLocalScrobbleEnabled = { true },
+                reporter = NeteaseWeblogReporter(client),
+                resolveTrack = { song ->
+                    NeteaseScrobbleTrack(
+                        songId = song.id,
+                        title = song.name,
+                        artist = song.artist,
+                        durationMs = song.durationMs,
+                        isLocal = false
+                    )
+                },
+                clockMs = { nowMs },
+                startPlayDelayMs = 0L
+            )
+
+            controller.onSongChanged(testSong(id = 186016L, name = "晴天"))
+            // ExoPlayer fires onIsPlayingChanged(true) before progress advances
+            controller.onEnginePlayingChanged(isPlaying = true, progressAdvanced = false)
+            // First progress advance triggers onPlayingChanged(true)
+            controller.onPlayingChanged(true)
+            awaitPayloadCount(payloads, 1)
+
+            nowMs += 40_000L
+            controller.onTrackEnded()
+            awaitPayloadCount(payloads, 2)
+
+            assertEquals("startplay", JSONArray(payloads[0]).getJSONObject(0).getString("action"))
+            val playObj = JSONArray(payloads[1]).getJSONObject(0)
+            assertEquals("play", playObj.getString("action"))
+            assertEquals(40L, playObj.getJSONObject("json").getLong("time"))
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `downloaded netease songs retain direct netease song id while pure local imports stay local`() {
+        val downloadedNetease = SongItem(
+            id = 2L,
+            name = "晴天",
+            artist = "周杰伦",
+            album = "__local_files__",
+            albumId = 0L,
+            durationMs = 269_000L,
+            coverUrl = null,
+            mediaUri = "file:///storage/emulated/0/Music/晴天.flac",
+            localFilePath = "/storage/emulated/0/Music/晴天.flac",
+            channelId = "netease",
+            audioId = "186016",
+            sourceStableKey = SongIdentity(186016L, "netease", null).stableKey()
+        )
+        val pureLocal = SongItem(
+            id = 999L,
+            name = "晴天",
+            artist = "周杰伦",
+            album = "叶惠美",
+            albumId = 0L,
+            durationMs = 269_000L,
+            coverUrl = null,
+            mediaUri = "file:///storage/emulated/0/Music/晴天.flac",
+            localFilePath = "/storage/emulated/0/Music/晴天.flac",
+            channelId = "local",
+            audioId = "999"
+        )
+
+        val neteaseTrack = buildNeteaseScrobbleTrack(downloadedNetease, isLocalFile = true)!!
+        assertFalse(neteaseTrack.isLocal)
+        assertEquals(186016L, neteaseTrack.songId)
+        assertEquals("", neteaseTrack.album)
+
+        val localTrack = buildNeteaseScrobbleTrack(pureLocal, isLocalFile = true)!!
+        assertTrue(localTrack.isLocal)
+        assertNull(localTrack.songId)
+        assertEquals("叶惠美", localTrack.album)
     }
 }

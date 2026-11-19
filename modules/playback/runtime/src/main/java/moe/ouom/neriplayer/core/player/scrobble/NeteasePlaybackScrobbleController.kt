@@ -110,7 +110,9 @@ class NeteasePlaybackScrobbleController(
     }
 
     fun onPlayingChanged(playing: Boolean) {
-        if (!playing) {
+        if (playing) {
+            startOrResumeTracking()
+        } else {
             pauseTrackingLocked()
         }
     }

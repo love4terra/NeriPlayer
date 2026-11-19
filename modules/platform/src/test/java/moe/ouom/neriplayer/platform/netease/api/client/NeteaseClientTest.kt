@@ -1,13 +1,19 @@
 package moe.ouom.neriplayer.platform.netease.api.client
 
+import moe.ouom.neriplayer.platform.netease.api.crypto.NeteaseCrypto
 import moe.ouom.neriplayer.platform.netease.api.request.buildNeteaseCloudParams
 import okhttp3.Cookie
+import okhttp3.FormBody
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.nio.charset.StandardCharsets
+import javax.crypto.Cipher
+import javax.crypto.spec.SecretKeySpec
 
 class NeteaseClientTest {
 
@@ -167,6 +173,68 @@ class NeteaseClientTest {
     @Test(expected = IllegalArgumentException::class)
     fun cloudParams_rejectUnsupportedLimit() {
         buildNeteaseCloudParams(offset = 0, limit = 1001)
+    }
+
+    @Test
+    fun buildWeblogRequest_usesClientlogEndpointHeadersAndEapiEncryptedHeader() {
+        val client = NeteaseClient { error("Comment token is outside this test") }
+        client.setPersistedCookies(
+            mapOf(
+                "MUSIC_U" to "login-music-u",
+                "__csrf" to "csrf-token",
+                "os" to "pc",
+                "appver" to "8.10.35"
+            )
+        )
+        val logsJson = """[{"action":"startplay","json":{"id":186016,"type":"song","mainsite":"1","mainsiteWeb":"1","content":"id=0"}}]"""
+        val request = client.buildWeblogRequest(logsJson, nowMs = 1_700_000_000_123L)
+
+        assertEquals("https://clientlog.music.163.com/eapi/feedback/weblog", request.url.toString())
+        assertEquals("https://music.163.com", request.header("Origin"))
+        assertEquals("https://music.163.com/", request.header("Referer"))
+        assertEquals(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36",
+            request.header("User-Agent")
+        )
+        val cookieHeader = request.header("Cookie").orEmpty()
+        assertTrue(cookieHeader.contains("MUSIC_U=login-music-u"))
+        assertTrue(cookieHeader.contains("__csrf=csrf-token"))
+        assertTrue(cookieHeader.contains("os=osx"))
+        assertTrue(cookieHeader.contains("appver=3.1.10.5100"))
+        assertFalse(cookieHeader.contains("appver=8.10.35"))
+
+        val form = request.body as FormBody
+        assertEquals("params", form.name(0))
+        val plain = decryptEapiParams(form.value(0))
+        val parts = plain.split("-36cd479b6b5-")
+        assertEquals(3, parts.size)
+        assertEquals("/api/feedback/weblog", parts[0])
+        assertEquals(
+            NeteaseCrypto.md5Hex("nobody/api/feedback/webloguse${parts[1]}md5forencrypt"),
+            parts[2]
+        )
+
+        val payloadJson = JSONObject(parts[1])
+        assertEquals(logsJson, payloadJson.getString("logs"))
+        assertFalse(payloadJson.getBoolean("e_r"))
+        val encryptedHeader = payloadJson.getJSONObject("header")
+        assertEquals("login-music-u", encryptedHeader.getString("MUSIC_U"))
+        assertEquals("csrf-token", encryptedHeader.getString("__csrf"))
+        assertEquals("osx", encryptedHeader.getString("os"))
+        assertEquals("3.1.10.5100", encryptedHeader.getString("appver"))
+        assertEquals("15.5", encryptedHeader.getString("osver"))
+        assertEquals(52, encryptedHeader.getString("deviceId").length)
+        assertTrue(encryptedHeader.getString("requestId").startsWith("1700000000123_"))
+    }
+
+    private fun decryptEapiParams(hexCipher: String): String {
+        val bytes = hexCipher.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        val cipher = Cipher.getInstance("AES/ECB/PKCS5Padding")
+        cipher.init(
+            Cipher.DECRYPT_MODE,
+            SecretKeySpec("e82ckenh8dichen8".toByteArray(StandardCharsets.UTF_8), "AES")
+        )
+        return String(cipher.doFinal(bytes), StandardCharsets.UTF_8)
     }
 
     private fun assertTrueHexSessionCookie(value: String?) {

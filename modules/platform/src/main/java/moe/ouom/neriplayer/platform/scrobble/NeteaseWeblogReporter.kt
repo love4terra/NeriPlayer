@@ -2,6 +2,8 @@ package moe.ouom.neriplayer.platform.scrobble
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import moe.ouom.neriplayer.common.logging.NPLogger
 import moe.ouom.neriplayer.platform.netease.api.client.NeteaseClient
@@ -18,6 +20,8 @@ class NeteaseWeblogReporter(
     companion object {
         private const val TAG = "NERI-NeteaseWeblog"
     }
+
+    private val reportMutex = Mutex()
 
     suspend fun resolveReportableSongId(
         track: NeteaseScrobbleTrack,
@@ -40,7 +44,9 @@ class NeteaseWeblogReporter(
                 JSONObject().apply {
                     put("id", songId)
                     put("type", "song")
-                    put("content", "")
+                    put("mainsite", "1")
+                    put("mainsiteWeb", "1")
+                    put("content", "id=0")
                 }
             )
         }
@@ -61,12 +67,17 @@ class NeteaseWeblogReporter(
             put(
                 "json",
                 JSONObject().apply {
-                    put("id", songId)
-                    put("type", "song")
-                    put("time", seconds)
-                    put("end", endReason.wireValue)
-                    put("wifi", 0)
                     put("download", 0)
+                    put("end", endReason.wireValue)
+                    put("id", songId)
+                    put("sourceId", "0")
+                    put("time", seconds)
+                    put("type", "song")
+                    put("wifi", 0)
+                    put("source", "list")
+                    put("mainsite", "1")
+                    put("mainsiteWeb", "1")
+                    put("content", "id=0")
                 }
             )
         }
@@ -77,21 +88,28 @@ class NeteaseWeblogReporter(
     }
 
     private suspend fun postWeblog(logsJson: String, label: String): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val raw = neteaseClient.reportWeblogCancellable(logsJson)
-            val code = runCatching { JSONObject(raw).optInt("code", -1) }.getOrDefault(-1)
-            if (code == 200) {
-                NPLogger.d(TAG, "网易云打卡成功: $label")
-                true
-            } else {
-                NPLogger.w(TAG, "网易云打卡返回非200: $label code=$code")
+        reportMutex.withLock {
+            try {
+                val raw = neteaseClient.reportWeblogCancellable(logsJson)
+                // clientlog 接口在 HTTP 200 时可能返回空响应体，视作上报成功
+                val code = if (raw.isBlank()) {
+                    200
+                } else {
+                    runCatching { JSONObject(raw).optInt("code", -1) }.getOrDefault(-1)
+                }
+                if (code == 200) {
+                    NPLogger.d(TAG, "网易云打卡成功: $label")
+                    true
+                } else {
+                    NPLogger.w(TAG, "网易云打卡返回非200: $label code=$code body=${raw.take(200)}")
+                    false
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (e: Exception) {
+                NPLogger.w(TAG, "网易云打卡失败: $label", e)
                 false
             }
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (e: Exception) {
-            NPLogger.w(TAG, "网易云打卡失败: $label", e)
-            false
         }
     }
 }

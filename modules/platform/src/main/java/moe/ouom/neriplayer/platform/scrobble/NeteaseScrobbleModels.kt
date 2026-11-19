@@ -9,6 +9,7 @@ data class NeteaseScrobbleTrack(
     val artist: String,
     val durationMs: Long,
     val isLocal: Boolean,
+    val album: String = "",
     val matchedLyricSource: MusicPlatform? = null,
     val matchedSongId: String? = null
 )

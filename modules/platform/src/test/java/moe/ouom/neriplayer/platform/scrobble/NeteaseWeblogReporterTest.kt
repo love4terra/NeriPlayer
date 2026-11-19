@@ -101,13 +101,15 @@ class NeteaseWeblogReporterTest {
     }
 
     @Test
-    fun `reporter posts startplay and play weblog payloads when logged in`(): Unit = runBlocking {
+    fun `reporter posts startplay and play weblog payloads when logged in and treats empty 200 body as success`(): Unit = runBlocking {
         val client = mock(NeteaseClient::class.java)
         `when`(client.hasLogin()).thenReturn(true)
         val payloads = mutableListOf<String>()
+        var callCount = 0
         `when`(client.reportWeblogCancellable(anyString())).thenAnswer { invocation ->
             payloads += invocation.getArgument<String>(0)
-            """{"code":200}"""
+            callCount++
+            if (callCount == 1) """{"code":200}""" else ""
         }
 
         val reporter = NeteaseWeblogReporter(client)
@@ -119,12 +121,155 @@ class NeteaseWeblogReporterTest {
 
         val startObj = JSONArray(payloads[0]).getJSONObject(0)
         assertEquals("startplay", startObj.getString("action"))
-        assertEquals(186016L, startObj.getJSONObject("json").getLong("id"))
+        val startJson = startObj.getJSONObject("json")
+        assertEquals(186016L, startJson.getLong("id"))
+        assertEquals("song", startJson.getString("type"))
+        assertEquals("1", startJson.getString("mainsite"))
+        assertEquals("1", startJson.getString("mainsiteWeb"))
+        assertEquals("id=0", startJson.getString("content"))
 
         val playObj = JSONArray(payloads[1]).getJSONObject(0)
         assertEquals("play", playObj.getString("action"))
-        assertEquals(186016L, playObj.getJSONObject("json").getLong("id"))
-        assertEquals(45L, playObj.getJSONObject("json").getLong("time"))
-        assertEquals("playend", playObj.getJSONObject("json").getString("end"))
+        val playJson = playObj.getJSONObject("json")
+        assertEquals(186016L, playJson.getLong("id"))
+        assertEquals(45L, playJson.getLong("time"))
+        assertEquals("playend", playJson.getString("end"))
+        assertEquals("0", playJson.getString("sourceId"))
+        assertEquals("list", playJson.getString("source"))
+        assertEquals("1", playJson.getString("mainsite"))
+        assertEquals("1", playJson.getString("mainsiteWeb"))
+        assertEquals("id=0", playJson.getString("content"))
+    }
+
+    @Test
+    fun `local song matcher enforces fixed duration and passes partial overlap across title artist and album`(): Unit = runBlocking {
+        val client = mock(NeteaseClient::class.java)
+        `when`(client.hasLogin()).thenReturn(true)
+        `when`(client.searchSongsCancellable("Blinding Lights The Weeknd", 10, 0, 1, true)).thenReturn(
+            """{"code":200,"result":{"songs":[
+                {"id":3001,"name":"Blinding Lights","ar":[{"name":"The Weeknd"},{"name":"ROSALÍA"}],"al":{"name":"After Hours"},"dt":200000}
+            ]}}"""
+        )
+        `when`(client.searchSongsCancellable("サクラ いきものがかり", 10, 0, 1, true)).thenReturn(
+            """{"code":200,"result":{"songs":[
+                {"id":3002,"name":"さくら","ar":[{"name":"いきものがかり"}],"al":{"name":"My song Your song"},"dt":350000}
+            ]}}"""
+        )
+        `when`(client.searchSongsCancellable("Hikaru Nara Goose house", 10, 0, 1, true)).thenReturn(
+            """{"code":200,"result":{"songs":[]}}"""
+        )
+        `when`(client.searchSongsCancellable("Milk Goose house", 20, 0, 1, true)).thenReturn(
+            """{"code":200,"result":{"songs":[
+                {"id":3003,"name":"光るなら","ar":[{"name":"Goose house"}],"al":{"name":"Milk"},"dt":253000}
+            ]}}"""
+        )
+        `when`(client.searchSongsCancellable("Unravel TK from Ling tosite sigure", 10, 0, 1, true)).thenReturn(
+            """{"code":200,"result":{"songs":[]}}"""
+        )
+        `when`(client.searchSongsCancellable("Fantastic Magic TK from Ling tosite sigure", 20, 0, 1, true)).thenReturn(
+            """{"code":200,"result":{"songs":[]}}"""
+        )
+        `when`(client.searchSongsCancellable("Unravel Fantastic Magic", 20, 0, 1, true)).thenReturn(
+            """{"code":200,"result":{"songs":[
+                {"id":3004,"name":"unravel","ar":[{"name":"TK from 凛として時雨"}],"al":{"name":"Fantastic Magic"},"dt":238000}
+            ]}}"""
+        )
+        `when`(client.searchSongsCancellable("偏离时长 周杰伦", 10, 0, 1, true)).thenReturn(
+            """{"code":200,"result":{"songs":[
+                {"id":3005,"name":"偏离时长","ar":[{"name":"周杰伦"}],"al":{"name":"叶惠美"},"dt":210000}
+            ]}}"""
+        )
+
+        val reporter = NeteaseWeblogReporter(client)
+
+        assertEquals(
+            3001L,
+            reporter.resolveReportableSongId(
+                NeteaseScrobbleTrack(
+                    songId = null,
+                    title = "Blinding Lights feat. Rosalia",
+                    artist = "The Weeknd",
+                    durationMs = 201_200L,
+                    isLocal = true
+                ),
+                allowLocalMatch = true
+            )
+        )
+
+        assertEquals(
+            3002L,
+            reporter.resolveReportableSongId(
+                NeteaseScrobbleTrack(
+                    songId = null,
+                    title = "サクラ",
+                    artist = "いきものがかり",
+                    durationMs = 350_500L,
+                    isLocal = true
+                ),
+                allowLocalMatch = true
+            )
+        )
+
+        // English title vs Japanese title passes via artist + album + fixed duration
+        assertEquals(
+            3003L,
+            reporter.resolveReportableSongId(
+                NeteaseScrobbleTrack(
+                    songId = null,
+                    title = "Hikaru Nara",
+                    artist = "Goose house",
+                    album = "Milk (Special Edition)",
+                    durationMs = 253_800L,
+                    isLocal = true
+                ),
+                allowLocalMatch = true
+            )
+        )
+
+        // Different artist spelling passes via title + album + fixed duration
+        assertEquals(
+            3004L,
+            reporter.resolveReportableSongId(
+                NeteaseScrobbleTrack(
+                    songId = null,
+                    title = "Unravel",
+                    artist = "TK from Ling tosite sigure",
+                    album = "Fantastic Magic",
+                    durationMs = 238_000L,
+                    isLocal = true
+                ),
+                allowLocalMatch = true
+            )
+        )
+
+        // Duration difference > 3s is strictly rejected
+        assertNull(
+            reporter.resolveReportableSongId(
+                NeteaseScrobbleTrack(
+                    songId = null,
+                    title = "偏离时长",
+                    artist = "周杰伦",
+                    album = "叶惠美",
+                    durationMs = 216_000L,
+                    isLocal = true
+                ),
+                allowLocalMatch = true
+            )
+        )
+
+        // Unknown duration is strictly rejected
+        assertNull(
+            reporter.resolveReportableSongId(
+                NeteaseScrobbleTrack(
+                    songId = null,
+                    title = "Unravel",
+                    artist = "TK from 凛として時雨",
+                    album = "Fantastic Magic",
+                    durationMs = 0L,
+                    isLocal = true
+                ),
+                allowLocalMatch = true
+            )
+        )
     }
 }

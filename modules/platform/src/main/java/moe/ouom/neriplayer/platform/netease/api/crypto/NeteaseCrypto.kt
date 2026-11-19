@@ -138,15 +138,31 @@ object NeteaseCrypto {
     fun linuxApiEncrypt(payload: Map<String, Any>) =
         mapOf("eparams" to aesEncrypt(JsonUtil.toJson(payload), LINUX_KEY, "", "ecb", "hex"))
 
-    fun eApiEncrypt(url: String, payload: Map<String, Any>): Map<String, String> {
-        val data = JsonUtil.toJson(payload)
+    fun eApiEncrypt(
+        url: String,
+        payload: Map<String, Any>,
+        header: Map<String, String>? = null,
+        expectEncryptedResponse: Boolean = false
+    ): Map<String, String> {
+        val bodyPayload = if (header == null) {
+            payload
+        } else {
+            linkedMapOf<String, Any>().apply {
+                putAll(payload)
+                put("header", header)
+                put("e_r", expectEncryptedResponse)
+            }
+        }
+        val data = JsonUtil.toJson(bodyPayload)
+        val apiPath = url.replace("/eapi", "/api")
         val message = String.format(
+            Locale.ROOT,
             EAPI_FORMAT,
-            url.replace("/eapi", "/api"),
+            apiPath,
             data,
-            md5Hex(String.format(EAPI_SALT, url.replace("/eapi", "/api"), data))
+            md5Hex(String.format(Locale.ROOT, EAPI_SALT, apiPath, data))
         )
-        val cipher = aesEncrypt(message, EAPI_KEY, "", "ecb", "hex").uppercase(Locale.getDefault())
+        val cipher = aesEncrypt(message, EAPI_KEY, "", "ecb", "hex").uppercase(Locale.ROOT)
         return mapOf("params" to cipher)
     }
 
