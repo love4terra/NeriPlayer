@@ -31,7 +31,8 @@ internal object PlaybackMediaItemFactory {
         neteaseFallbackEnabled: () -> Boolean,
         youtubeQuality: () -> String,
         biliQuality: () -> String,
-        neteaseQuality: () -> String
+        neteaseQuality: () -> String,
+        neteaseSourceNamespace: () -> String = { "" }
     ): String {
         ServerSongRef.from(song)?.let { return it.cacheKey }
         if (LocalSongSupport.isLocalSong(song, context)) return "local-${song.stableKey().hashCode()}"
@@ -39,7 +40,12 @@ internal object PlaybackMediaItemFactory {
             return youtubeSongCacheKey(song, youtubeQualityOverride, youtubePreferM4a, youtubeQuality)
         }
         if (isBiliSource(song)) return biliSongCacheKey(song, biliQuality)
-        return neteaseCacheKey(song.id, neteaseQuality(), neteaseFallbackEnabled())
+        return neteaseCacheKey(
+            songId = song.id,
+            preferredQuality = neteaseQuality(),
+            useFallbackNamespace = neteaseFallbackEnabled(),
+            sourceNamespace = neteaseSourceNamespace()
+        )
     }
 
     fun isYouTubeSource(song: SongItem): Boolean =
@@ -70,13 +76,24 @@ internal object PlaybackMediaItemFactory {
         .substringBefore('|')
         .takeIf { it.isNotBlank() }
 
-    fun neteaseCacheKey(songId: Long, preferredQuality: String, useFallbackNamespace: Boolean): String {
+    fun neteaseCacheKey(
+        songId: Long,
+        preferredQuality: String,
+        useFallbackNamespace: Boolean,
+        sourceNamespace: String = ""
+    ): String {
         val quality = preferredQuality.trim().lowercase().ifBlank { "exhigh" }
-        return if (useFallbackNamespace) {
-            "netease-$songId-$quality-fallback-v1"
-        } else {
-            "netease-$songId-$quality"
+        val normalizedSourceNamespace = sourceNamespace.trim().lowercase()
+        val suffix = buildString {
+            if (normalizedSourceNamespace.isNotEmpty()) {
+                append('-')
+                append(normalizedSourceNamespace)
+            }
+            if (useFallbackNamespace) {
+                append("-fallback-v1")
+            }
         }
+        return "netease-$songId-$quality$suffix"
     }
 
     fun neteasePreviewCacheKey(songId: Long, preferredQuality: String): String {

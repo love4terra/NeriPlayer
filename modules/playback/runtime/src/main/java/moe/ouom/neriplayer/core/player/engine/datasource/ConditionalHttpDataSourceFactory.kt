@@ -40,6 +40,7 @@ import moe.ouom.neriplayer.platform.youtube.auth.YouTubeAuthRepository
 import moe.ouom.neriplayer.data.model.youtube.auth.YOUTUBE_MUSIC_ORIGIN
 import moe.ouom.neriplayer.platform.bilibili.api.stream.isBiliStreamHost
 import moe.ouom.neriplayer.platform.bilibili.api.stream.isBiliStreamUrl
+import moe.ouom.neriplayer.platform.gdmusic.GdMusicClient
 import moe.ouom.neriplayer.platform.youtube.api.transport.buildYouTubeStreamRequestHeaders
 import moe.ouom.neriplayer.platform.youtube.api.transport.isYouTubeGoogleVideoHost
 import moe.ouom.neriplayer.data.traffic.TrafficStatsRepository
@@ -106,6 +107,7 @@ class ConditionalHttpDataSourceFactory(
                     shouldInjectYouTubeHeaders(dataSpec.uri) -> {
                         buildYouTubeDataSpec(dataSpec)
                     }
+                    shouldInjectNeteaseHeaders(host) -> buildNeteaseDataSpec(dataSpec)
                     else -> dataSpec
                 }
             }
@@ -141,6 +143,24 @@ class ConditionalHttpDataSourceFactory(
     private fun shouldInjectBiliHeaders(uri: Uri, host: String): Boolean {
         return (uri.scheme.equals("https", ignoreCase = true) || uri.scheme.equals("http", ignoreCase = true)) &&
             (host == BILI_AKAMAI_HOST || isBiliStreamHost(host) || isBiliStreamUrl(uri.toString()))
+    }
+
+    private fun shouldInjectNeteaseHeaders(host: String): Boolean {
+        return host == "music.126.net" || host.endsWith(".music.126.net")
+    }
+
+    private fun buildNeteaseDataSpec(dataSpec: DataSpec): DataSpec {
+        val headers = LinkedHashMap<String, String>(dataSpec.httpRequestHeaders.size + 2)
+        headers.putAll(dataSpec.httpRequestHeaders)
+        if (headers.keys.none { it.equals("Referer", ignoreCase = true) }) {
+            headers["Referer"] = GdMusicClient.NETEASE_MEDIA_REFERER
+        }
+        if (headers.keys.none { it.equals("User-Agent", ignoreCase = true) }) {
+            headers["User-Agent"] = GdMusicClient.BROWSER_USER_AGENT
+        }
+        return dataSpec.buildUpon()
+            .setHttpRequestHeaders(headers)
+            .build()
     }
 
     private fun shouldInjectYouTubeHeaders(uri: Uri): Boolean {

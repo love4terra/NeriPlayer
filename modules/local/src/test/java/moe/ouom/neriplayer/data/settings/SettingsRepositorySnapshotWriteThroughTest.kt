@@ -6,6 +6,8 @@ import androidx.datastore.preferences.core.edit
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import moe.ouom.neriplayer.data.model.netease.playback.NeteaseAudioSourcePreference
+import moe.ouom.neriplayer.data.model.netease.playback.NeteaseDownloadSourcePreference
 import moe.ouom.neriplayer.data.model.settings.appearance.ThemePreferenceSnapshot
 import moe.ouom.neriplayer.data.model.settings.playback.PlaybackPreferenceSnapshot
 import moe.ouom.neriplayer.data.settings.appearance.ThemeDefaults
@@ -189,6 +191,18 @@ class SettingsRepositorySnapshotWriteThroughTest {
                 PlaybackPreferenceSnapshot::neteaseLocalSourceFallback
             ),
             PlaybackToggle(
+                "neteaseScrobbleEnabled",
+                repository::setNeteaseScrobbleEnabled,
+                repository.neteaseScrobbleEnabledFlow,
+                PlaybackPreferenceSnapshot::neteaseScrobbleEnabled
+            ),
+            PlaybackToggle(
+                "neteaseLocalScrobbleEnabled",
+                repository::setNeteaseLocalScrobbleEnabled,
+                repository.neteaseLocalScrobbleEnabledFlow,
+                PlaybackPreferenceSnapshot::neteaseLocalScrobbleEnabled
+            ),
+            PlaybackToggle(
                 "stopOnBluetoothDisconnect",
                 repository::setStopOnBluetoothDisconnect,
                 repository.stopOnBluetoothDisconnectFlow,
@@ -312,6 +326,34 @@ class SettingsRepositorySnapshotWriteThroughTest {
             assertNull(snapshot.downloadDirectoryUri)
             assertNull(snapshot.downloadDirectoryLabel)
         }
+    }
+
+    @Test
+    fun `netease playback and download sources write through to flows and snapshot`() = withIsolatedSettings { context, repository, _ ->
+        assertEquals(
+            NeteaseAudioSourcePreference.GD_MUSIC_FIRST,
+            repository.neteasePlaybackSourceFlow.first()
+        )
+        assertEquals(
+            NeteaseDownloadSourcePreference.FOLLOW_PLAYBACK,
+            repository.neteaseDownloadSourceFlow.first()
+        )
+
+        repository.setNeteasePlaybackSource(NeteaseAudioSourcePreference.OFFICIAL_ONLY)
+        repository.setNeteaseDownloadSource(NeteaseDownloadSourcePreference.GD_MUSIC_ONLY)
+
+        assertEquals(
+            NeteaseAudioSourcePreference.OFFICIAL_ONLY,
+            repository.neteasePlaybackSourceFlow.first()
+        )
+        assertEquals(
+            NeteaseDownloadSourcePreference.GD_MUSIC_ONLY,
+            repository.neteaseDownloadSourceFlow.first()
+        )
+        assertEquals(
+            NeteaseAudioSourcePreference.OFFICIAL_ONLY.storageValue,
+            readPlaybackPreferenceSnapshotCached(context)?.neteasePlaybackSource
+        )
     }
 
     private class PlaybackToggle(

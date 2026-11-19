@@ -52,6 +52,7 @@ import moe.ouom.neriplayer.data.model.SongItem
 import moe.ouom.neriplayer.data.model.server.isServerSong
 import moe.ouom.neriplayer.platform.subsonic.api.SubsonicException
 import moe.ouom.neriplayer.data.model.stableKey
+import moe.ouom.neriplayer.platform.gdmusic.GdMusicClient
 import moe.ouom.neriplayer.platform.youtube.api.transport.buildYouTubeStreamRequestHeaders
 import moe.ouom.neriplayer.platform.youtube.media.isYouTubeMusicSong
 import moe.ouom.neriplayer.data.model.settings.download.DownloadAudioQualitySelection
@@ -396,7 +397,7 @@ internal suspend fun AudioDownloadManager.resolveDownloadSourceForAttempt(
                 preferredQuality = downloadAudioQuality.biliQuality
             )
             else -> resolveNetease(
-                songId = song.id,
+                song = song,
                 preferredQuality = downloadAudioQuality.neteaseQuality
             )
         }
@@ -455,7 +456,9 @@ internal suspend fun AudioDownloadManager.prepareDownloadAttempt(
                 ).forEach { (name, value) -> header(name, value) }
             }.build()
         }
-        else -> Request.Builder().url(url).build()
+        else -> Request.Builder().url(url).apply {
+            GdMusicClient.mediaHeadersForUrl(url).forEach { (name, value) -> header(name, value) }
+        }.build()
     }
     val transportKind = resolveDownloadTransportKind(
         streamType = resolved.streamType,

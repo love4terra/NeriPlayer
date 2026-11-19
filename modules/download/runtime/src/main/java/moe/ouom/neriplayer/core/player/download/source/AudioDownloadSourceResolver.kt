@@ -6,7 +6,9 @@ import moe.ouom.neriplayer.data.identity.identity
 import moe.ouom.neriplayer.core.player.download.AudioDownloadManager
 import moe.ouom.neriplayer.core.player.download.transfer.AudioDownloadTransferPolicy
 import androidx.core.net.toUri
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
+import moe.ouom.neriplayer.data.model.netease.playback.NeteaseAudioSourcePreference
 import moe.ouom.neriplayer.platform.bilibili.playback.resolver.resolveBiliSong
 import moe.ouom.neriplayer.data.model.youtube.playback.YouTubePlayableAudio
 import moe.ouom.neriplayer.data.model.youtube.playback.YouTubePlayableStreamType
@@ -65,6 +67,74 @@ internal object AudioDownloadSourceResolver {
         data object ExplicitlyUnavailable : NeteaseDownloadLookup
         data object PreviewOnly : NeteaseDownloadLookup
         data object Missing : NeteaseDownloadLookup
+    }
+
+    internal suspend fun resolveNetease(
+        song: SongItem,
+        preferredQuality: String
+    ): AudioDownloadManager.ResolvedDownloadSource? {
+        val preference = DownloadHosts.sources.neteaseDownloadSource()
+            ?: NeteaseAudioSourcePreference.OFFICIAL_ONLY
+        return when (preference) {
+            NeteaseAudioSourcePreference.GD_MUSIC_FIRST -> {
+                tryResolveGdMusicDownloadSource(song, preferredQuality)
+                    ?: resolveNetease(songId = song.id, preferredQuality = preferredQuality)
+            }
+
+            NeteaseAudioSourcePreference.OFFICIAL_FIRST -> {
+                val officialOutcome = runCatching {
+                    resolveNetease(songId = song.id, preferredQuality = preferredQuality)
+                }
+                val officialException = officialOutcome.exceptionOrNull()
+                if (officialException is CancellationException) {
+                    throw officialException
+                }
+                officialOutcome.getOrNull()?.let { return it }
+                tryResolveGdMusicDownloadSource(song, preferredQuality)?.let { return it }
+                if (officialException != null) {
+                    throw officialException
+                }
+                null
+            }
+
+            NeteaseAudioSourcePreference.GD_MUSIC_ONLY -> {
+                tryResolveGdMusicDownloadSource(song, preferredQuality)
+            }
+
+            NeteaseAudioSourcePreference.OFFICIAL_ONLY -> {
+                resolveNetease(songId = song.id, preferredQuality = preferredQuality)
+            }
+        }
+    }
+
+    private suspend fun tryResolveGdMusicDownloadSource(
+        song: SongItem,
+        preferredQuality: String
+    ): AudioDownloadManager.ResolvedDownloadSource? {
+        val gdClient = DownloadHosts.sources.gdMusicClient ?: return null
+        val resolved = gdClient.resolveNeteaseUrl(
+            songId = song.id,
+            title = song.name,
+            artist = song.artist,
+            durationMs = song.durationMs,
+            preferredQuality = preferredQuality,
+            allowJooxFallback = true,
+            isPrefetch = false
+        ) ?: return null
+        val lowerUrl = resolved.url.lowercase()
+        val mimeType = when {
+            ".flac" in lowerUrl || resolved.qualityLevel == "lossless" -> "audio/flac"
+            ".m4a" in lowerUrl || ".mp4" in lowerUrl -> "audio/mp4"
+            ".ogg" in lowerUrl -> "audio/ogg"
+            else -> "audio/mpeg"
+        }
+        return AudioDownloadManager.ResolvedDownloadSource(
+            url = resolved.url,
+            mimeType = mimeType,
+            fileExtensionHint = mimeToExt(mimeType) ?: extFromUrl(resolved.url),
+            contentLength = resolved.sizeBytes.takeIf { it > 0L },
+            durationMs = song.durationMs.takeIf { it > 0L }
+        )
     }
 
     internal suspend fun resolveNetease(

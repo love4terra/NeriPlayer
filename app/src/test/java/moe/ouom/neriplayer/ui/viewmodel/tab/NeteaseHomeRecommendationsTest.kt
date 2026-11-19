@@ -545,6 +545,29 @@ class NeteaseHomeRecommendationsTest {
         )
     }
 
+    @Test
+    fun dailyRecommendParsesAllSongsWithoutThirtyTrackCap() {
+        val itemsJson = (1..38).joinToString(",") { index ->
+            """
+            {
+              "id": ${10_000 + index},
+              "name": "日推歌曲 $index",
+              "dt": 180000,
+              "ar": [{"id": $index, "name": "歌手 $index"}],
+              "al": {"id": $index, "name": "专辑 $index", "picUrl": "http://p1.music.126.net/$index.jpg"}
+            }
+            """.trimIndent()
+        }
+        val raw = """{"code":200,"data":{"dailySongs":[$itemsJson]}}"""
+
+        val limit = neteaseHomeSongLimitFor(NeteaseHomeSongSource.DAILY_RECOMMEND)
+        val parsed = parseNeteaseHomeSongs(raw, limit = limit)
+
+        assertEquals(Int.MAX_VALUE, limit)
+        assertEquals(38, parsed.size)
+        assertEquals(30, neteaseHomeSongLimitFor(NeteaseHomeSongSource.TOP_HOT))
+    }
+
     private fun testSong(id: Long, audioId: String): SongItem {
         return SongItem(
             id = id,

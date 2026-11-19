@@ -25,6 +25,10 @@ package moe.ouom.neriplayer.data.settings
 
 import kotlinx.coroutines.flow.onEach
 import moe.ouom.neriplayer.data.model.settings.appearance.UiStyle
+import moe.ouom.neriplayer.data.model.netease.playback.NeteaseAudioSourcePreference
+import moe.ouom.neriplayer.data.model.netease.playback.NeteaseDownloadSourcePreference
+import moe.ouom.neriplayer.data.model.netease.playback.NeteaseDownloadSourcePreferencePolicy
+import moe.ouom.neriplayer.data.model.netease.playback.NeteasePlaybackSourcePreferencePolicy
 import moe.ouom.neriplayer.data.model.youtube.playback.YouTubePlaybackSourcePreference
 import moe.ouom.neriplayer.platform.youtube.settings.YouTubePlaybackSourcePreferencePolicy
 import moe.ouom.neriplayer.data.model.settings.appearance.AdvancedBlurQuality
@@ -217,6 +221,14 @@ class SettingsRepository(private val context: Context) {
 
     val youtubeAudioQualityFlow: Flow<String> =
         dataStoreSettingFlow { it[SettingsKeys.YOUTUBE_AUDIO_QUALITY] ?: "high" }
+
+    val neteasePlaybackSourceFlow: Flow<NeteaseAudioSourcePreference> =
+        settingFlow(AutoSettingsSchema.playback.neteasePlaybackSource)
+            .map(NeteasePlaybackSourcePreferencePolicy::fromStorage)
+
+    val neteaseDownloadSourceFlow: Flow<NeteaseDownloadSourcePreference> =
+        settingFlow(AutoSettingsSchema.download.downloadNeteaseSource)
+            .map(NeteaseDownloadSourcePreferencePolicy::fromStorage)
 
     val youtubePlaybackSourceFlow: Flow<YouTubePlaybackSourcePreference> =
         settingFlow(AutoSettingsSchema.playback.youtubePlaybackSource)
@@ -657,6 +669,12 @@ class SettingsRepository(private val context: Context) {
     val neteaseLocalSourceFallbackFlow: Flow<Boolean> =
         dataStoreSettingFlow { it[SettingsKeys.NETEASE_LOCAL_SOURCE_FALLBACK] ?: false }
 
+    val neteaseScrobbleEnabledFlow: Flow<Boolean> =
+        settingFlow(AutoSettingsSchema.playback.neteaseScrobbleEnabled)
+
+    val neteaseLocalScrobbleEnabledFlow: Flow<Boolean> =
+        settingFlow(AutoSettingsSchema.playback.neteaseLocalScrobbleEnabled)
+
     val stopOnBluetoothDisconnectFlow: Flow<Boolean> =
         dataStoreSettingFlow { it[SettingsKeys.STOP_ON_BLUETOOTH_DISCONNECT] ?: true }
 
@@ -798,6 +816,43 @@ class SettingsRepository(private val context: Context) {
     suspend fun setYouTubeAudioQuality(value: String) {
         context.dataStore.edit { it[SettingsKeys.YOUTUBE_AUDIO_QUALITY] = value }
         updatePlaybackPreferenceSnapshot(context) { it.copy(youtubeAudioQuality = value) }
+    }
+
+    suspend fun setNeteasePlaybackSource(source: NeteaseAudioSourcePreference) {
+        setSetting(
+            setting = AutoSettingsSchema.playback.neteasePlaybackSource,
+            value = source.storageValue
+        )
+        updatePlaybackPreferenceSnapshot(context) {
+            it.copy(neteasePlaybackSource = source.storageValue)
+        }
+    }
+
+    suspend fun setNeteaseDownloadSource(source: NeteaseDownloadSourcePreference) {
+        setSetting(
+            setting = AutoSettingsSchema.download.downloadNeteaseSource,
+            value = source.storageValue
+        )
+    }
+
+    suspend fun setNeteaseScrobbleEnabled(enabled: Boolean) {
+        setSetting(
+            setting = AutoSettingsSchema.playback.neteaseScrobbleEnabled,
+            value = enabled
+        )
+        updatePlaybackPreferenceSnapshot(context) {
+            it.copy(neteaseScrobbleEnabled = enabled)
+        }
+    }
+
+    suspend fun setNeteaseLocalScrobbleEnabled(enabled: Boolean) {
+        setSetting(
+            setting = AutoSettingsSchema.playback.neteaseLocalScrobbleEnabled,
+            value = enabled
+        )
+        updatePlaybackPreferenceSnapshot(context) {
+            it.copy(neteaseLocalScrobbleEnabled = enabled)
+        }
     }
 
     suspend fun setYouTubePlaybackSource(source: YouTubePlaybackSourcePreference) {

@@ -112,6 +112,9 @@ internal fun AutoSettingInfo.settingsPage(): SettingsPage? {
         return SettingsPage.ExternalLyrics
     }
     if (
+        keyName == "netease_playback_source" ||
+        keyName == "netease_scrobble_enabled" ||
+        keyName == "netease_local_scrobble_enabled" ||
         keyName == "netease_auto_source_switch" ||
         keyName == "netease_local_source_fallback"
     ) {
@@ -1033,6 +1036,14 @@ private val SettingSearchAliases = mapOf(
     "download_metadata_post_processing_enabled" to listOf("taglib", "metadata", "lyrics embed"),
     "standardized_lyric_embedding_enabled" to listOf("lyrics embed", "lrc", "tag"),
     "download_follow_playback_audio_quality" to listOf("download quality", "audio quality", "yin zhi"),
+    "download_netease_source" to listOf(
+        "netease download source",
+        "gd music",
+        "gdmusic",
+        "网易云下载源",
+        "下载源",
+        "下载音源"
+    ),
     "download_netease_audio_quality" to listOf("netease download quality", "wangyi yin zhi"),
     "download_youtube_audio_quality" to listOf("youtube download quality", "youtube yin zhi"),
     "download_bili_audio_quality" to listOf("bili download quality", "bilibili yin zhi"),
@@ -1061,6 +1072,29 @@ private val SettingSearchAliases = mapOf(
     "playback_volume_balance" to listOf("balance", "left right", "shengdao"),
     "keep_last_playback_progress" to listOf("resume", "progress", "jindu"),
     "remember_long_form_playback_progress" to listOf("podcast", "audiobook", "long form", "changyinpin"),
+    "netease_playback_source" to listOf(
+        "netease playback source",
+        "gd music",
+        "gdmusic",
+        "网易云播放源",
+        "播放源",
+        "切换音源"
+    ),
+    "netease_scrobble_enabled" to listOf(
+        "netease scrobble",
+        "weblog",
+        "play history",
+        "听歌记录",
+        "网易云打卡",
+        "播放记录"
+    ),
+    "netease_local_scrobble_enabled" to listOf(
+        "local scrobble",
+        "local song match",
+        "本地歌曲上报",
+        "本地听歌记录",
+        "网易云打卡"
+    ),
     "netease_auto_source_switch" to listOf(
         "auto source",
         "bili fallback",

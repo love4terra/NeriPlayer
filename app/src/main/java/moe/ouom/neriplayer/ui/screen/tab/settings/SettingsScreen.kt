@@ -87,6 +87,7 @@ import moe.ouom.neriplayer.ui.screen.tab.settings.component.traffic.SettingsTraf
 import moe.ouom.neriplayer.ui.screen.tab.settings.component.ThemeModeActionButton
 import moe.ouom.neriplayer.ui.screen.tab.settings.component.ThemeSeedListItem
 import moe.ouom.neriplayer.ui.screen.tab.settings.component.usb.UsbExclusiveSettingsSection
+import moe.ouom.neriplayer.ui.screen.tab.settings.component.playback.NeteasePlaybackSourceSetting
 import moe.ouom.neriplayer.ui.screen.tab.settings.component.playback.YouTubePlaybackSourceSetting
 import moe.ouom.neriplayer.ui.screen.tab.settings.dialog.SettingsGitHubDialogs
 import moe.ouom.neriplayer.ui.screen.tab.settings.dialog.SettingsPreferenceDialogs
@@ -948,6 +949,12 @@ internal fun SettingsScreen(
 
                         SettingsPage.PlaybackSource to {
                             miuixSettingsSectionCardItem(key = "${selectedPage.name}:content") {
+                                NeteasePlaybackSourceSetting(
+                                    repository = repository,
+                                    highlightTargetId = settingsHighlightTargetId,
+                                    highlightPulse = settingsHighlightPulse,
+                                    onHighlightFinished = onSettingsHighlightFinished
+                                )
                                 YouTubePlaybackSourceSetting(
                                     repository = repository,
                                     highlightTargetId = settingsHighlightTargetId,
@@ -1006,6 +1013,60 @@ internal fun SettingsScreen(
                                     onHighlightFinished = onSettingsHighlightFinished,
                                     onClick = {
                                         playbackActions.onNeteaseAutoSourceSwitchChange(!playbackState.playbackSources.neteaseAutoSourceSwitch)
+                                    }
+                                )
+                                AutoSettingsListItem(
+                                    setting = AutoSettingsMetadata.requireSetting(
+                                        AutoSettingsKeys.NETEASE_SCROBBLE_ENABLED
+                                    ),
+                                    leadingContent = {
+                                        Icon(
+                                            painter = painterResource(CoreCommonR.drawable.ic_netease_cloud_music),
+                                            contentDescription = stringResource(
+                                                CoreCommonR.string.settings_netease_scrobble_enabled
+                                            ),
+                                            modifier = Modifier.size(24.dp),
+                                            tint = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    },
+                                    trailingContent = {
+                                        MiuixSettingsSwitch(
+                                            checked = playbackState.playbackSources.neteaseScrobbleEnabled,
+                                            onCheckedChange = playbackActions.onNeteaseScrobbleEnabledChange
+                                        )
+                                    },
+                                    highlightTargetId = settingsHighlightTargetId,
+                                    highlightPulse = settingsHighlightPulse,
+                                    onHighlightFinished = onSettingsHighlightFinished,
+                                    onClick = {
+                                        playbackActions.onNeteaseScrobbleEnabledChange(!playbackState.playbackSources.neteaseScrobbleEnabled)
+                                    }
+                                )
+                                AutoSettingsListItem(
+                                    setting = AutoSettingsMetadata.requireSetting(
+                                        AutoSettingsKeys.NETEASE_LOCAL_SCROBBLE_ENABLED
+                                    ),
+                                    leadingContent = {
+                                        Icon(
+                                            imageVector = Icons.Outlined.LibraryMusic,
+                                            contentDescription = stringResource(
+                                                CoreCommonR.string.settings_netease_local_scrobble_enabled
+                                            ),
+                                            modifier = Modifier.size(24.dp),
+                                            tint = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    },
+                                    trailingContent = {
+                                        MiuixSettingsSwitch(
+                                            checked = playbackState.playbackSources.neteaseLocalScrobbleEnabled,
+                                            onCheckedChange = playbackActions.onNeteaseLocalScrobbleEnabledChange
+                                        )
+                                    },
+                                    highlightTargetId = settingsHighlightTargetId,
+                                    highlightPulse = settingsHighlightPulse,
+                                    onHighlightFinished = onSettingsHighlightFinished,
+                                    onClick = {
+                                        playbackActions.onNeteaseLocalScrobbleEnabledChange(!playbackState.playbackSources.neteaseLocalScrobbleEnabled)
                                     }
                                 )
                             }

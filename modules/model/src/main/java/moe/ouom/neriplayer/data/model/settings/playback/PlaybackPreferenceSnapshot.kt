@@ -1,5 +1,6 @@
 package moe.ouom.neriplayer.data.model.settings.playback
 
+import moe.ouom.neriplayer.data.model.netease.playback.DEFAULT_NETEASE_PLAYBACK_SOURCE
 import moe.ouom.neriplayer.data.model.playback.DEFAULT_PLAYBACK_LOUDNESS_GAIN_MB
 import moe.ouom.neriplayer.data.model.playback.DEFAULT_PLAYBACK_PITCH
 import moe.ouom.neriplayer.data.model.playback.DEFAULT_PLAYBACK_SPEED
@@ -38,6 +39,9 @@ data class PlaybackPreferenceSnapshot(
     val keepPlaybackModeState: Boolean = true,
     val neteaseAutoSourceSwitch: Boolean = false,
     val neteaseLocalSourceFallback: Boolean = false,
+    val neteasePlaybackSource: String = DEFAULT_NETEASE_PLAYBACK_SOURCE,
+    val neteaseScrobbleEnabled: Boolean = true,
+    val neteaseLocalScrobbleEnabled: Boolean = true,
     val playbackFadeIn: Boolean = true,
     val playbackCrossfadeNext: Boolean = true,
     val sleepTimerFinishCurrentOnExpiry: Boolean = false,

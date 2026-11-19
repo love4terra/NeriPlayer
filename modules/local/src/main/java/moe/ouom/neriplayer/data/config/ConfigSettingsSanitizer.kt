@@ -26,6 +26,8 @@ import moe.ouom.neriplayer.data.settings.lyrics.LyricSourcePreferencePolicy
 import moe.ouom.neriplayer.data.settings.SettingsKeys
 import moe.ouom.neriplayer.data.settings.appearance.ThemeDefaults
 import moe.ouom.neriplayer.data.settings.appearance.UiDensityScalePreference
+import moe.ouom.neriplayer.data.model.netease.playback.NeteaseDownloadSourcePreferencePolicy
+import moe.ouom.neriplayer.data.model.netease.playback.NeteasePlaybackSourcePreferencePolicy
 import moe.ouom.neriplayer.platform.youtube.settings.YouTubePlaybackSourcePreferencePolicy
 import moe.ouom.neriplayer.data.settings.generated.AutoSettingsBackupKeys
 import moe.ouom.neriplayer.data.model.settings.lyrics.normalizeFloatingLyricsAlignment
@@ -185,6 +187,12 @@ internal class ConfigSettingsSanitizer(private val context: Context) {
         }
         sanitizeStringValue(strings, SettingsKeys.YOUTUBE_PLAYBACK_SOURCE.name, onAdjusted) {
             YouTubePlaybackSourcePreferencePolicy.normalize(it)
+        }
+        sanitizeStringValue(strings, SettingsKeys.NETEASE_PLAYBACK_SOURCE.name, onAdjusted) {
+            NeteasePlaybackSourcePreferencePolicy.normalize(it)
+        }
+        sanitizeStringValue(strings, SettingsKeys.DOWNLOAD_NETEASE_SOURCE.name, onAdjusted) {
+            NeteaseDownloadSourcePreferencePolicy.normalize(it)
         }
         sanitizeStringValue(strings, SettingsKeys.DEFAULT_LYRIC_SOURCE.name, onAdjusted) {
             LyricSourcePreferencePolicy.normalize(it)

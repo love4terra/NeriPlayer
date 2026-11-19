@@ -50,6 +50,7 @@ import moe.ouom.neriplayer.platform.bilibili.api.client.BiliClient
 import moe.ouom.neriplayer.platform.bilibili.playback.BiliClientAudioDataSource
 import moe.ouom.neriplayer.platform.bilibili.playback.BiliPlaybackRepository
 import moe.ouom.neriplayer.platform.bilibili.skip.sponsorblock.BiliSponsorBlockRepository
+import moe.ouom.neriplayer.platform.gdmusic.GdMusicClient
 import moe.ouom.neriplayer.platform.lyrics.api.client.AmllTtmlClient
 import moe.ouom.neriplayer.platform.lyrics.repository.EditableLyricsMatcher
 import moe.ouom.neriplayer.platform.lyrics.repository.AmllLyricsRepository
@@ -420,6 +421,7 @@ object AppContainer {
     }
 
     val biliClient by lazy { BiliClient(biliCookieRepo, client = sharedOkHttpClient) }
+    val gdMusicClient by lazy { GdMusicClient(okHttpClient = sharedOkHttpClient) }
 
     /** 歌曲百科仓库；数据源为网易云，其它来源返回 NotSupported。 */
     val songEncyclopediaRepository: SongEncyclopediaRepository by lazy {

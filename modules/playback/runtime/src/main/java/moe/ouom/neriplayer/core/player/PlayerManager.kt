@@ -43,6 +43,10 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import moe.ouom.neriplayer.core.player.scrobble.NeteasePlaybackScrobbleController
+import moe.ouom.neriplayer.data.model.netease.playback.NeteaseAudioSourcePreference
+import moe.ouom.neriplayer.data.model.server.isServerSong
+import moe.ouom.neriplayer.platform.scrobble.NeteaseScrobbleTrack
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -486,9 +490,17 @@ object PlayerManager {
     internal var rememberLongFormPlaybackProgressEnabled = true
     internal var keepPlaybackModeStateEnabled = true
     @Volatile
+    internal var neteasePlaybackSourcePreference = NeteaseAudioSourcePreference.GD_MUSIC_FIRST
+    @Volatile
     internal var neteaseAutoSourceSwitchEnabled = false
     @Volatile
     internal var neteaseLocalSourceFallbackEnabled = false
+    @Volatile
+    internal var neteaseScrobbleEnabled = true
+    @Volatile
+    internal var neteaseLocalScrobbleEnabled = true
+    @Volatile
+    internal var neteaseScrobbleController: NeteasePlaybackScrobbleController? = null
     internal var stopOnBluetoothDisconnectEnabled = true
     @Volatile
     var usbExclusivePlaybackEnabled = false
@@ -765,6 +777,7 @@ object PlayerManager {
     val biliRepo by lazy { PlayerDependencies.repositories.biliPlaybackRepository }
     val biliClient by lazy { PlayerDependencies.repositories.biliClient }
     val neteaseClient by lazy { PlayerDependencies.repositories.neteaseClient }
+    val gdMusicClient by lazy { runCatching { PlayerDependencies.repositories.gdMusicClient }.getOrNull() }
     val youtubeMusicPlaybackRepository by lazy { PlayerDependencies.repositories.youtubeMusicPlaybackRepository }
     val youtubeMusicClient by lazy { PlayerDependencies.repositories.youtubeMusicClient }
 
@@ -820,6 +833,9 @@ object PlayerManager {
             localPlaylistId = currentSongLocalPlaylistId(song),
             writesEnabled = initialized
         )
+        if (initialized) {
+            neteaseScrobbleController?.onSongChanged(song)
+        }
     }
 
     private fun currentSongLocalPlaylistId(song: SongItem?): Long? {
@@ -1519,10 +1535,16 @@ object PlayerManager {
         reason: String
     ) {
         playbackStatsOwner.onPlayingChanged(playing, reason, writesEnabled = initialized)
+        if (initialized) {
+            neteaseScrobbleController?.onPlayingChanged(playing)
+        }
     }
 
     internal fun syncPlaybackStatsEnginePlayingState(isPlaying: Boolean) {
         playbackStatsOwner.onEnginePlayingChanged(isPlaying, playbackProgressAdvanceReported, writesEnabled = initialized)
+        if (initialized) {
+            neteaseScrobbleController?.onEnginePlayingChanged(isPlaying, playbackProgressAdvanceReported)
+        }
     }
 
     internal fun drainPlaybackStatsPersistJobBlocking(reason: String) {
@@ -1534,6 +1556,9 @@ object PlayerManager {
         stopTracking: Boolean = false
     ) {
         playbackStatsOwner.flushBlocking(reason, stopTracking, writesEnabled = initialized)
+        if (initialized && stopTracking) {
+            neteaseScrobbleController?.flushOnStopOrRelease()
+        }
     }
 
     internal fun flushPlaybackStatsAsyncImpl(
@@ -1541,6 +1566,29 @@ object PlayerManager {
         stopTracking: Boolean = false
     ) {
         playbackStatsOwner.flushAsync(reason, stopTracking, writesEnabled = initialized)
+        if (initialized && stopTracking) {
+            neteaseScrobbleController?.flushOnStopOrRelease()
+        }
+    }
+
+    internal fun createNeteaseScrobbleTrack(song: SongItem): NeteaseScrobbleTrack? {
+        if (isBiliTrack(song) || isYouTubeMusicTrack(song) || song.isServerSong()) {
+            return null
+        }
+        val isLocal = isLocalSong(song)
+        val songId = if (!isLocal && song.id > 0L) song.id else null
+        if (!isLocal && songId == null) {
+            return null
+        }
+        return NeteaseScrobbleTrack(
+            songId = songId,
+            title = song.name,
+            artist = song.artist,
+            durationMs = song.durationMs,
+            isLocal = isLocal,
+            matchedLyricSource = song.matchedLyricSource,
+            matchedSongId = song.matchedSongId
+        )
     }
 
     /**
@@ -1576,17 +1624,20 @@ object PlayerManager {
         neteaseFallbackEnabled = { neteaseAutoSourceSwitchEnabled || neteaseLocalSourceFallbackEnabled },
         youtubeQuality = ::effectiveYouTubeQuality,
         biliQuality = ::effectiveBiliQuality,
-        neteaseQuality = ::effectiveNeteaseQuality
+        neteaseQuality = ::effectiveNeteaseQuality,
+        neteaseSourceNamespace = { neteasePlaybackSourcePreference.cacheNamespace() }
     )
 
     internal fun buildNeteasePlaybackCacheKey(
         songId: Long,
         preferredQuality: String,
-        useFallbackNamespace: Boolean
+        useFallbackNamespace: Boolean,
+        sourceNamespace: String = neteasePlaybackSourcePreference.cacheNamespace()
     ): String = PlaybackMediaItemFactory.neteaseCacheKey(
-        songId,
-        preferredQuality,
-        useFallbackNamespace
+        songId = songId,
+        preferredQuality = preferredQuality,
+        useFallbackNamespace = useFallbackNamespace,
+        sourceNamespace = sourceNamespace
     )
 
     internal fun buildNeteasePreviewCacheKey(

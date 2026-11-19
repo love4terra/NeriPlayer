@@ -84,6 +84,14 @@ internal fun homeSongFetchAttemptCount(source: NeteaseHomeSongSource): Int {
     }
 }
 
+internal fun neteaseHomeSongLimitFor(source: NeteaseHomeSongSource): Int {
+    return if (source == NeteaseHomeSongSource.DAILY_RECOMMEND) {
+        Int.MAX_VALUE
+    } else {
+        HOME_NETEASE_SONG_LIMIT
+    }
+}
+
 internal fun shouldRefreshNeteaseHome(
     loginChanged: Boolean,
     recommendationsBootstrapped: Boolean,
@@ -1049,9 +1057,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             parseNeteaseHomePlaylists(raw, limit = HOME_NETEASE_PLAYLIST_LIMIT)
         }
 
-    private suspend fun parseSongsOnWorker(raw: String): List<SongItem> =
+    private suspend fun parseSongsOnWorker(
+        raw: String,
+        limit: Int = HOME_NETEASE_SONG_LIMIT
+    ): List<SongItem> =
         withContext(Dispatchers.Default) {
-            parseNeteaseHomeSongs(raw, limit = HOME_NETEASE_SONG_LIMIT)
+            parseNeteaseHomeSongs(raw, limit = limit)
         }
 
     private suspend fun fetchSongSection(
@@ -1141,7 +1152,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val raw = withContext(Dispatchers.IO) {
             fetchSongSourceRaw(source)
         }
-        return parseSongsOnWorker(raw)
+        return parseSongsOnWorker(raw, limit = neteaseHomeSongLimitFor(source))
     }
 
     /** 将首页来源的请求参数集中在一起，避免登录态契约在调用点分散 */

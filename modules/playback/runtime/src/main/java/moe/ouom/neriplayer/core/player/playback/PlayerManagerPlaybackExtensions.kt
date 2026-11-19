@@ -1206,6 +1206,9 @@ internal fun PlayerManager.handleTrackEndedIfNeededImpl(source: String) {
         "开始处理曲目结束事件: source=$source, key=$currentKey, index=$currentIndex, queueSize=${currentPlaylist.size}"
     )
     playbackStatsOwner.onTrackEnded(writesEnabled = initialized)
+    if (initialized) {
+        neteaseScrobbleController?.onTrackEnded()
+    }
     handleTrackEnded()
 }
 
@@ -1828,6 +1831,9 @@ private fun PlayerManager.maybeReportProgressStats(positionMs: Long) {
 }
 
 private fun PlayerManager.reportProgressStats(positionMs: Long) {
+    if (initialized) {
+        neteaseScrobbleController?.onProgress(positionMs)
+    }
     if (playbackStatsOwner.onProgress(positionMs, writesEnabled = initialized)) {
         markTrackEndHandledForStatsFallback()
     }

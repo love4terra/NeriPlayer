@@ -145,6 +145,18 @@ class SettingsPageTest {
 
     @Test
     fun neteaseSourceFallbackSettingsOpenPlaybackSourcePage() {
+        val neteasePlaybackSource = AutoSettingsMetadata.settings.first {
+            it.keyName == "netease_playback_source"
+        }
+        val neteaseScrobble = AutoSettingsMetadata.settings.first {
+            it.keyName == "netease_scrobble_enabled"
+        }
+        val neteaseLocalScrobble = AutoSettingsMetadata.settings.first {
+            it.keyName == "netease_local_scrobble_enabled"
+        }
+        val downloadNeteaseSource = AutoSettingsMetadata.settings.first {
+            it.keyName == "download_netease_source"
+        }
         val autoSourceSwitch = AutoSettingsMetadata.settings.first {
             it.keyName == "netease_auto_source_switch"
         }
@@ -152,6 +164,10 @@ class SettingsPageTest {
             it.keyName == "netease_local_source_fallback"
         }
 
+        assertEquals(SettingsPage.PlaybackSource, neteasePlaybackSource.settingsPage())
+        assertEquals(SettingsPage.PlaybackSource, neteaseScrobble.settingsPage())
+        assertEquals(SettingsPage.PlaybackSource, neteaseLocalScrobble.settingsPage())
+        assertEquals(SettingsPage.Downloads, downloadNeteaseSource.settingsPage())
         assertEquals(SettingsPage.PlaybackSource, autoSourceSwitch.settingsPage())
         assertEquals(SettingsPage.PlaybackSource, localSourceFallback.settingsPage())
     }

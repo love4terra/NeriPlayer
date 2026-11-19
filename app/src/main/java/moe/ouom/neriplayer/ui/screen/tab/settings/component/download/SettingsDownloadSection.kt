@@ -71,7 +71,9 @@ import moe.ouom.neriplayer.core.download.GlobalDownloadManager
 import moe.ouom.neriplayer.core.player.download.network.MAX_DOWNLOAD_PARALLELISM
 import moe.ouom.neriplayer.core.player.download.network.normalizeDownloadParallelism
 import moe.ouom.neriplayer.data.settings.AutoSettingsSchema
+import moe.ouom.neriplayer.data.settings.SettingsRepository
 import moe.ouom.neriplayer.data.settings.autoSettingFlow
+import moe.ouom.neriplayer.ui.screen.tab.settings.component.playback.NeteaseDownloadSourceSetting
 import moe.ouom.neriplayer.data.settings.download.normalizeDownloadBiliAudioQuality
 import moe.ouom.neriplayer.data.settings.download.normalizeDownloadNeteaseAudioQuality
 import moe.ouom.neriplayer.data.settings.download.normalizeDownloadYouTubeAudioQuality
@@ -133,6 +135,8 @@ private fun SettingsDownloadExpandedContent(
     val batchDownloadProgress by GlobalDownloadManager.batchDownloadProgressFlow.collectAsState()
     val taskSummary by GlobalDownloadManager.downloadTaskSummary.collectAsState()
     val visibleProgress = batchDownloadProgress?.takeIf { taskSummary.hasPendingTasks }
+    val appContext = LocalContext.current.applicationContext
+    val settingsRepository = remember(appContext) { SettingsRepository(appContext) }
 
     Column(
         modifier = Modifier
@@ -163,6 +167,15 @@ private fun SettingsDownloadExpandedContent(
         Spacer(modifier = Modifier.height(4.dp))
 
         DownloadParallelismSettingItem(
+            highlightTargetId = highlightTargetId,
+            highlightPulse = highlightPulse,
+            onHighlightFinished = onHighlightFinished
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        NeteaseDownloadSourceSetting(
+            repository = settingsRepository,
             highlightTargetId = highlightTargetId,
             highlightPulse = highlightPulse,
             onHighlightFinished = onHighlightFinished

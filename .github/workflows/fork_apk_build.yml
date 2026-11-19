@@ -1,0 +1,77 @@
+name: Fork APK Build
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    paths-ignore:
+      - '**/*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GRADLE_OPTS: -Dorg.gradle.caching=true
+
+concurrency:
+  group: fork-apk-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-debug-apk:
+    name: Build Installable Debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          submodules: recursive
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Install Android NDK
+        uses: ./.github/actions/android-ndk
+
+      - name: Verify boundaries, unit tests, lint and assemble Debug APK
+        run: >-
+          ./gradlew
+          verifyModuleBoundaries
+          :platform:verifyDomainDependencies
+          :app:verifyDomainDependencies
+          testDebugUnitTest
+          :app:lintDebug
+          :app:assembleDebug
+          --no-daemon
+          --max-workers=2
+          --warning-mode all
+          --stacktrace
+
+      - name: Upload Gradle test reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: fork-gradle-test-reports
+          path: |
+            **/build/reports/tests/**
+
+      - name: Upload Installable Debug APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: neriplayer-debug-apk
+          if-no-files-found: error
+          path: |
+            app/build/outputs/apk/debug/*.apk

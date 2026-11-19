@@ -3,6 +3,7 @@ package moe.ouom.neriplayer.core.player.host
 import moe.ouom.neriplayer.platform.subsonic.repository.SubsonicRepository
 
 import moe.ouom.neriplayer.platform.bilibili.api.client.BiliClient
+import moe.ouom.neriplayer.platform.gdmusic.GdMusicClient
 import moe.ouom.neriplayer.platform.netease.api.client.NeteaseClient
 import moe.ouom.neriplayer.platform.search.api.client.CloudMusicSearchApi
 import moe.ouom.neriplayer.platform.youtube.api.client.YouTubeMusicClient
@@ -33,6 +34,7 @@ interface PlayerRepositoryDependencies {
     val youtubeAuthRepo: YouTubeAuthRepository
     val biliClient: BiliClient
     val neteaseClient: NeteaseClient
+    val gdMusicClient: GdMusicClient? get() = null
     val youtubeMusicClient: YouTubeMusicClient
     val biliPlaybackRepository: BiliPlaybackRepository
     val youtubeMusicPlaybackRepository: YouTubeMusicPlaybackRepository

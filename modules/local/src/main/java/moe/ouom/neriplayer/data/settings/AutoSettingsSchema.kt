@@ -1,5 +1,7 @@
 package moe.ouom.neriplayer.data.settings
 
+import moe.ouom.neriplayer.data.model.netease.playback.DEFAULT_NETEASE_DOWNLOAD_SOURCE
+import moe.ouom.neriplayer.data.model.netease.playback.NeteaseDownloadSourcePreferencePolicy
 import moe.ouom.neriplayer.data.settings.appearance.AdvancedBlurQualityPreference
 import moe.ouom.neriplayer.data.settings.appearance.DEFAULT_ADVANCED_BLUR_QUALITY
 import moe.ouom.neriplayer.data.settings.appearance.DEFAULT_ENHANCED_ADVANCED_BLUR_RADIUS_DP
@@ -1610,6 +1612,22 @@ object AutoSettingsSchema {
             titleRes = CoreCommonR.string.settings_download_follow_playback_audio_quality,
             descriptionRes = CoreCommonR.string.settings_download_follow_playback_audio_quality_desc,
             icon = AutoSettingIcon.Audiotrack
+        )
+
+        @AutoSetting(
+            key = "download_netease_source",
+            type = SettingValueType.String,
+            defaultString = DEFAULT_NETEASE_DOWNLOAD_SOURCE,
+            order = 15,
+            ui = SettingUiType.Custom,
+            normalizer = NeteaseDownloadSourcePreferencePolicy::class
+        )
+        val downloadNeteaseSource = autoStringSetting(
+            key = "download_netease_source",
+            defaultValue = DEFAULT_NETEASE_DOWNLOAD_SOURCE,
+            titleRes = CoreCommonR.string.settings_netease_download_source,
+            descriptionRes = CoreCommonR.string.settings_netease_download_source_desc,
+            iconRes = CoreCommonR.drawable.ic_netease_cloud_music
         )
 
         @AutoSetting(

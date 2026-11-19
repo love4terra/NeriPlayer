@@ -1616,4 +1616,39 @@ class NeteaseClient(
             method = "GET",
         )
     }
+
+    /**
+     * 上报网易云播放日志（/eapi/feedback/weblog，支持 startplay 与 play）。
+     */
+    suspend fun reportWeblogCancellable(logsJson: String): String {
+        val url = "https://interface.music.163.com/eapi/feedback/weblog"
+        val params = mapOf<String, Any>("logs" to logsJson)
+        val first = requestCancellable(
+            url = url,
+            params = params,
+            mode = CryptoMode.EAPI,
+            method = "POST",
+            usePersistedCookies = true,
+            retryHttp1OnStreamReset = true
+        )
+        val code = runCatching { JSONObject(first).optInt("code", -1) }.getOrNull()
+        if (code == 301 && hasLogin()) {
+            try {
+                withContext(Dispatchers.IO) { ensureWeapiSession() }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                NPLogger.w("NERI-NeteaseClient", "Weblog session refresh failed")
+            }
+            return requestCancellable(
+                url = url,
+                params = params,
+                mode = CryptoMode.EAPI,
+                method = "POST",
+                usePersistedCookies = true,
+                retryHttp1OnStreamReset = true
+            )
+        }
+        return first
+    }
 }

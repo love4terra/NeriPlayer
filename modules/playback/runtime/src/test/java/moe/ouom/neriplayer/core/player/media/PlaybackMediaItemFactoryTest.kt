@@ -66,6 +66,14 @@ class PlaybackMediaItemFactoryTest {
             "netease-9-exhigh-fallback-v1",
             PlaybackMediaItemFactory.neteaseCacheKey(9L, " ExHiGh ", true)
         )
+        assertEquals(
+            "netease-9-exhigh-gd_first_v1",
+            PlaybackMediaItemFactory.neteaseCacheKey(9L, "exhigh", false, "gd_first_v1")
+        )
+        assertEquals(
+            "netease-9-exhigh-gd_only_v1-fallback-v1",
+            PlaybackMediaItemFactory.neteaseCacheKey(9L, "exhigh", true, "gd_only_v1")
+        )
         assertEquals("netease-preview-v1-9-exhigh", PlaybackMediaItemFactory.neteasePreviewCacheKey(9L, ""))
         assertEquals("ytmusic-video-high", PlaybackMediaItemFactory.youtubeCacheKey("video", "high", false))
     }

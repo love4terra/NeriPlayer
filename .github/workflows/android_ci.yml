@@ -1,21 +1,6 @@
 name: NeriPlayer Android CI
 
 on:
-  push:
-    branches:
-      - master
-    paths-ignore:
-      - '**/*.md'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/labels.json'
-      - '.github/scripts/issue_labels*'
-      - '.github/scripts/sync_labels.cjs'
-      - '.github/scripts/check_issue_forms.rb'
-      - '.github/workflows/issue_labels.yml'
-      - '.github/workflows/sync_labels.yml'
-      - '.github/workflows/automation_checks.yml'
-      - '.github/workflows/manual_release.yml'
-      - '.github/workflows/recover_keystore.yml'
   pull_request:
     paths-ignore:
       - '**/*.md'

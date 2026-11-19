@@ -86,7 +86,9 @@ internal data class AppPlaybackSourcesSettingsState(
     val neteaseAutoSourceSwitch: Boolean,
     val neteaseLocalSourceFallback: Boolean,
     val allowMixedPlayback: Boolean,
-    val preemptAudioFocus: Boolean
+    val preemptAudioFocus: Boolean,
+    val neteaseScrobbleEnabled: Boolean,
+    val neteaseLocalScrobbleEnabled: Boolean
 )
 
 internal data class AppDefaultAudioQualitySettingsState(
@@ -278,12 +280,25 @@ private fun playbackContinuitySettingsFlow(repo: SettingsRepository): Flow<AppPl
 
 private fun playbackSourcesSettingsFlow(repo: SettingsRepository): Flow<AppPlaybackSourcesSettingsState> =
     combine(
-        repo.neteaseAutoSourceSwitchFlow,
-        repo.neteaseLocalSourceFallbackFlow,
-        repo.allowMixedPlaybackFlow,
-        repo.preemptAudioFocusFlow
-    ) { v0, v1, v2, v3 ->
-        AppPlaybackSourcesSettingsState(v0, v1, v2, v3)
+        combine(
+            repo.neteaseAutoSourceSwitchFlow,
+            repo.neteaseLocalSourceFallbackFlow,
+            repo.allowMixedPlaybackFlow,
+            repo.preemptAudioFocusFlow
+        ) { autoSwitch, localFallback, allowMixed, preemptFocus ->
+            listOf(autoSwitch, localFallback, allowMixed, preemptFocus)
+        },
+        repo.neteaseScrobbleEnabledFlow,
+        repo.neteaseLocalScrobbleEnabledFlow
+    ) { flags, scrobbleEnabled, localScrobbleEnabled ->
+        AppPlaybackSourcesSettingsState(
+            neteaseAutoSourceSwitch = flags[0],
+            neteaseLocalSourceFallback = flags[1],
+            allowMixedPlayback = flags[2],
+            preemptAudioFocus = flags[3],
+            neteaseScrobbleEnabled = scrobbleEnabled,
+            neteaseLocalScrobbleEnabled = localScrobbleEnabled
+        )
     }
 
 private fun defaultAudioQualitySettingsFlow(repo: SettingsRepository): Flow<AppDefaultAudioQualitySettingsState> =
@@ -435,7 +450,9 @@ internal fun initialAppSettingsRouteState(
             neteaseAutoSourceSwitch = startupPlaybackPreferences.neteaseAutoSourceSwitch,
             neteaseLocalSourceFallback = startupPlaybackPreferences.neteaseLocalSourceFallback,
             allowMixedPlayback = false,
-            preemptAudioFocus = startupPlaybackPreferences.preemptAudioFocus
+            preemptAudioFocus = startupPlaybackPreferences.preemptAudioFocus,
+            neteaseScrobbleEnabled = startupPlaybackPreferences.neteaseScrobbleEnabled,
+            neteaseLocalScrobbleEnabled = startupPlaybackPreferences.neteaseLocalScrobbleEnabled
         ),
         defaultAudioQuality = AppDefaultAudioQualitySettingsState(
             preferredQuality = "exhigh",

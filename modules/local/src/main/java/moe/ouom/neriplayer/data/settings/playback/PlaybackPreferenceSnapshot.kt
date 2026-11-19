@@ -23,6 +23,8 @@ package moe.ouom.neriplayer.data.settings.playback
  * Updated: 2026/4/5
  */
 
+import moe.ouom.neriplayer.data.model.netease.playback.DEFAULT_NETEASE_PLAYBACK_SOURCE
+import moe.ouom.neriplayer.data.model.netease.playback.NeteasePlaybackSourcePreferencePolicy
 import moe.ouom.neriplayer.data.model.settings.playback.DEFAULT_MOBILE_DATA_BILI_AUDIO_QUALITY
 import moe.ouom.neriplayer.data.model.settings.playback.DEFAULT_MOBILE_DATA_NETEASE_AUDIO_QUALITY
 import moe.ouom.neriplayer.data.model.settings.playback.DEFAULT_MOBILE_DATA_YOUTUBE_AUDIO_QUALITY
@@ -108,6 +110,9 @@ private const val PLAYBACK_REMEMBER_LONG_FORM_PROGRESS_KEY =
 private const val PLAYBACK_KEEP_MODE_STATE_KEY = "keep_playback_mode_state"
 private const val PLAYBACK_NETEASE_AUTO_SOURCE_SWITCH_KEY = "netease_auto_source_switch"
 private const val PLAYBACK_NETEASE_LOCAL_SOURCE_FALLBACK_KEY = "netease_local_source_fallback"
+private const val PLAYBACK_NETEASE_PLAYBACK_SOURCE_KEY = "netease_playback_source"
+private const val PLAYBACK_NETEASE_SCROBBLE_ENABLED_KEY = "netease_scrobble_enabled"
+private const val PLAYBACK_NETEASE_LOCAL_SCROBBLE_ENABLED_KEY = "netease_local_scrobble_enabled"
 private const val PLAYBACK_FADE_IN_KEY = "playback_fade_in"
 private const val PLAYBACK_CROSSFADE_NEXT_KEY = "playback_crossfade_next"
 private const val PLAYBACK_SLEEP_TIMER_FINISH_CURRENT_ON_EXPIRY_KEY =
@@ -266,6 +271,18 @@ private fun persistNormalizedPlaybackPreferenceSnapshot(
                     PLAYBACK_NETEASE_LOCAL_SOURCE_FALLBACK_KEY,
                     normalizedSnapshot.neteaseLocalSourceFallback
                 )
+                .putString(
+                    PLAYBACK_NETEASE_PLAYBACK_SOURCE_KEY,
+                    normalizedSnapshot.neteasePlaybackSource
+                )
+                .putBoolean(
+                    PLAYBACK_NETEASE_SCROBBLE_ENABLED_KEY,
+                    normalizedSnapshot.neteaseScrobbleEnabled
+                )
+                .putBoolean(
+                    PLAYBACK_NETEASE_LOCAL_SCROBBLE_ENABLED_KEY,
+                    normalizedSnapshot.neteaseLocalScrobbleEnabled
+                )
                 .putBoolean(PLAYBACK_FADE_IN_KEY, normalizedSnapshot.playbackFadeIn)
                 .putBoolean(PLAYBACK_CROSSFADE_NEXT_KEY, normalizedSnapshot.playbackCrossfadeNext)
                 .putBoolean(
@@ -406,6 +423,12 @@ fun Preferences.toPlaybackPreferenceSnapshot(): PlaybackPreferenceSnapshot {
         keepPlaybackModeState = valueOr(SettingsKeys.KEEP_PLAYBACK_MODE_STATE, true),
         neteaseAutoSourceSwitch = valueOr(SettingsKeys.NETEASE_AUTO_SOURCE_SWITCH, false),
         neteaseLocalSourceFallback = valueOr(SettingsKeys.NETEASE_LOCAL_SOURCE_FALLBACK, false),
+        neteasePlaybackSource = valueOr(
+            SettingsKeys.NETEASE_PLAYBACK_SOURCE,
+            DEFAULT_NETEASE_PLAYBACK_SOURCE
+        ),
+        neteaseScrobbleEnabled = valueOr(SettingsKeys.NETEASE_SCROBBLE_ENABLED, true),
+        neteaseLocalScrobbleEnabled = valueOr(SettingsKeys.NETEASE_LOCAL_SCROBBLE_ENABLED, true),
         playbackFadeIn = valueOr(SettingsKeys.PLAYBACK_FADE_IN, true),
         playbackCrossfadeNext = valueOr(SettingsKeys.PLAYBACK_CROSSFADE_NEXT, true),
         sleepTimerFinishCurrentOnExpiry = valueOr(SettingsKeys.PLAYBACK_SLEEP_TIMER_FINISH_CURRENT_ON_EXPIRY, false),
@@ -533,6 +556,14 @@ private fun SharedPreferences.toCachedPlaybackPreferenceSnapshot(): PlaybackPref
             prefs.getBoolean(PLAYBACK_NETEASE_AUTO_SOURCE_SWITCH_KEY, false),
         neteaseLocalSourceFallback =
             prefs.getBoolean(PLAYBACK_NETEASE_LOCAL_SOURCE_FALLBACK_KEY, false),
+        neteasePlaybackSource = prefs.stringOr(
+            PLAYBACK_NETEASE_PLAYBACK_SOURCE_KEY,
+            DEFAULT_NETEASE_PLAYBACK_SOURCE
+        ),
+        neteaseScrobbleEnabled =
+            prefs.getBoolean(PLAYBACK_NETEASE_SCROBBLE_ENABLED_KEY, true),
+        neteaseLocalScrobbleEnabled =
+            prefs.getBoolean(PLAYBACK_NETEASE_LOCAL_SCROBBLE_ENABLED_KEY, true),
         playbackFadeIn = prefs.getBoolean(PLAYBACK_FADE_IN_KEY, true),
         playbackCrossfadeNext = prefs.getBoolean(PLAYBACK_CROSSFADE_NEXT_KEY, true),
         sleepTimerFinishCurrentOnExpiry = prefs.getBoolean(
@@ -702,6 +733,7 @@ fun PlaybackPreferenceSnapshot.sanitized(): PlaybackPreferenceSnapshot {
             biliCcSubtitleLyricDefaultOffsetMs
         ),
         defaultLyricSource = LyricSourcePreferencePolicy.normalize(defaultLyricSource),
+        neteasePlaybackSource = NeteasePlaybackSourcePreferencePolicy.normalize(neteasePlaybackSource),
         maxCacheSizeBytes = CacheSizePolicy.normalizeCacheSizeBytes(maxCacheSizeBytes)
     )
 }

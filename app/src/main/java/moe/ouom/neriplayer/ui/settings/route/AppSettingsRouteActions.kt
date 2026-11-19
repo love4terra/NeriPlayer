@@ -306,6 +306,14 @@ internal class AppPlaybackSettingsActions(
             scope.launch { repo.setNeteaseAutoSourceSwitch(enabled) }
         }
 
+    val onNeteaseScrobbleEnabledChange: (Boolean) -> Unit = { enabled ->
+            scope.launch { repo.setNeteaseScrobbleEnabled(enabled) }
+        }
+
+    val onNeteaseLocalScrobbleEnabledChange: (Boolean) -> Unit = { enabled ->
+            scope.launch { repo.setNeteaseLocalScrobbleEnabled(enabled) }
+        }
+
     val onNeteaseLocalSourceFallbackChange: (Boolean) -> Unit = { enabled ->
             scope.launch { repo.setNeteaseLocalSourceFallback(enabled) }
         }

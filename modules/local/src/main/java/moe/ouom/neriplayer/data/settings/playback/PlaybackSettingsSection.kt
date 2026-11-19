@@ -2,6 +2,8 @@ package moe.ouom.neriplayer.data.settings.playback
 
 import moe.ouom.neriplayer.platform.youtube.settings.DEFAULT_YOUTUBE_PLAYBACK_SOURCE
 import moe.ouom.neriplayer.platform.youtube.settings.YouTubePlaybackSourcePreferencePolicy
+import moe.ouom.neriplayer.data.model.netease.playback.DEFAULT_NETEASE_PLAYBACK_SOURCE
+import moe.ouom.neriplayer.data.model.netease.playback.NeteasePlaybackSourcePreferencePolicy
 import moe.ouom.neriplayer.data.model.settings.usb.DEFAULT_USB_EXCLUSIVE_BACKGROUND_BUFFER_MS
 import moe.ouom.neriplayer.data.model.settings.usb.DEFAULT_USB_EXCLUSIVE_BIT_DEPTH_COMPATIBILITY
 import moe.ouom.neriplayer.data.model.settings.usb.DEFAULT_USB_EXCLUSIVE_BIT_DEPTH_MODE
@@ -264,6 +266,22 @@ abstract class PlaybackSettingsSection protected constructor() {
     )
 
     @AutoSetting(
+        key = "netease_playback_source",
+        type = SettingValueType.String,
+        defaultString = DEFAULT_NETEASE_PLAYBACK_SOURCE,
+        order = 134,
+        ui = SettingUiType.Custom,
+        normalizer = NeteasePlaybackSourcePreferencePolicy::class
+    )
+    val neteasePlaybackSource = autoStringSetting(
+        key = "netease_playback_source",
+        defaultValue = DEFAULT_NETEASE_PLAYBACK_SOURCE,
+        titleRes = CoreCommonR.string.settings_netease_playback_source,
+        descriptionRes = CoreCommonR.string.settings_netease_playback_source_desc,
+        iconRes = CoreCommonR.drawable.ic_netease_cloud_music
+    )
+
+    @AutoSetting(
         key = "netease_auto_source_switch",
         type = SettingValueType.Boolean,
         defaultBoolean = false,
@@ -495,5 +513,32 @@ abstract class PlaybackSettingsSection protected constructor() {
     val preemptAudioFocus = autoSetting(
         titleRes = CoreCommonR.string.settings_preempt_audio_focus,
         descriptionRes = CoreCommonR.string.settings_preempt_audio_focus_desc
+    )
+
+    @AutoSetting(
+        key = "netease_scrobble_enabled",
+        type = SettingValueType.Boolean,
+        defaultBoolean = true,
+        order = 181,
+        ui = SettingUiType.Custom,
+        access = SettingAccessMode.KeyOnly
+    )
+    val neteaseScrobbleEnabled = autoSetting(
+        titleRes = CoreCommonR.string.settings_netease_scrobble_enabled,
+        descriptionRes = CoreCommonR.string.settings_netease_scrobble_enabled_desc,
+        iconRes = CoreCommonR.drawable.ic_netease_cloud_music
+    )
+
+    @AutoSetting(
+        key = "netease_local_scrobble_enabled",
+        type = SettingValueType.Boolean,
+        defaultBoolean = true,
+        order = 182,
+        ui = SettingUiType.Custom,
+        access = SettingAccessMode.KeyOnly
+    )
+    val neteaseLocalScrobbleEnabled = autoSetting(
+        titleRes = CoreCommonR.string.settings_netease_local_scrobble_enabled,
+        descriptionRes = CoreCommonR.string.settings_netease_local_scrobble_enabled_desc
     )
 }
