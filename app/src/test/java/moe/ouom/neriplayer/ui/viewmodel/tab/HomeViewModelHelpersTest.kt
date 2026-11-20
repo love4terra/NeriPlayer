@@ -113,4 +113,12 @@ class HomeViewModelHelpersTest {
             buildHomeErrorMessage(IllegalStateException("bad state"), context)
         )
     }
+
+    @Test
+    fun `daily recommend only passes afresh true on explicit manual refresh`() {
+        assertFalse(shouldRequestDailyRecommendAfresh(NeteaseHomeSongSource.DAILY_RECOMMEND, false))
+        assertTrue(shouldRequestDailyRecommendAfresh(NeteaseHomeSongSource.DAILY_RECOMMEND, true))
+        assertFalse(shouldRequestDailyRecommendAfresh(NeteaseHomeSongSource.PERSONAL_RADAR, true))
+        assertFalse(shouldRequestDailyRecommendAfresh(NeteaseHomeSongSource.PRIVATE_FM, true))
+    }
 }

@@ -445,7 +445,7 @@ fun HomeScreen(
                             if (isInternational) {
                                 vm.refreshYtMusicHome()
                             } else {
-                                vm.refreshNeteaseHome()
+                                vm.refreshNeteaseHome(afreshDailyRecommend = true)
                             }
                         }
                     ) {

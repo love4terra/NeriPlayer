@@ -92,6 +92,11 @@ internal fun neteaseHomeSongLimitFor(source: NeteaseHomeSongSource): Int {
     }
 }
 
+internal fun shouldRequestDailyRecommendAfresh(
+    source: NeteaseHomeSongSource,
+    afreshDailyRecommend: Boolean
+): Boolean = source == NeteaseHomeSongSource.DAILY_RECOMMEND && afreshDailyRecommend
+
 internal fun shouldRefreshNeteaseHome(
     loginChanged: Boolean,
     recommendationsBootstrapped: Boolean,
@@ -717,11 +722,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun refreshNeteaseHome() {
+    fun refreshNeteaseHome(afreshDailyRecommend: Boolean = false) {
         if (offlineMode) return
 
         refreshRecommend()
-        loadHomeRecommendations(force = true)
+        loadHomeRecommendations(
+            force = true,
+            afreshDailyRecommend = afreshDailyRecommend
+        )
         refreshRadarPlaylists()
         loadBiliMusicHomeCoalesced()
     }
@@ -764,7 +772,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun loadHomeRecommendations(force: Boolean = false) {
+    fun loadHomeRecommendations(
+        force: Boolean = false,
+        afreshDailyRecommend: Boolean = false
+    ) {
         if (offlineMode) return
 
         val state = _uiState.value
@@ -776,7 +787,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             if (alreadyLoaded || loading) return
         }
 
-        refreshRadarSongs()
+        refreshRadarSongs(afreshDailyRecommend = afreshDailyRecommend)
         refreshHotSongs()
     }
 
@@ -822,7 +833,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** 刷新首页雷达歌曲板块，保留各来源独立的加载和错误状态 */
-    private fun refreshRadarSongs() {
+    private fun refreshRadarSongs(afreshDailyRecommend: Boolean = false) {
         if (offlineMode) return
 
         val sources = availableNeteaseHomeSongSources(
@@ -848,7 +859,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             homeSectionLoadCoordinator.load(
                 group = HomeSectionLoadGroup.RADAR_SONGS,
                 sources = sources,
-                fetch = { source -> fetchSongSection("refreshRadarSongs", source) }
+                fetch = { source ->
+                    fetchSongSection("refreshRadarSongs", source, afreshDailyRecommend)
+                }
             ) { section ->
                 _uiState.update { state ->
                     state.copy(
@@ -1067,14 +1080,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun fetchSongSection(
         name: String,
-        source: NeteaseHomeSongSource
+        source: NeteaseHomeSongSource,
+        afreshDailyRecommend: Boolean = false
     ): HomeNeteaseSongSectionState {
         return when (
             val result = fetchWithRetry(
                 name = "$name/$source",
                 maxAttempts = homeSongFetchAttemptCount(source)
             ) {
-                fetchSongSource(source)
+                fetchSongSource(source, afreshDailyRecommend)
             }
         ) {
             is RetryLoadResult.Success -> {
@@ -1145,18 +1159,24 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private suspend fun fetchSongSource(source: NeteaseHomeSongSource): List<SongItem> {
+    private suspend fun fetchSongSource(
+        source: NeteaseHomeSongSource,
+        afreshDailyRecommend: Boolean = false
+    ): List<SongItem> {
         if (source == NeteaseHomeSongSource.PRIVATE_FM) {
             return fetchPrivateFmSongs()
         }
         val raw = withContext(Dispatchers.IO) {
-            fetchSongSourceRaw(source)
+            fetchSongSourceRaw(source, afreshDailyRecommend)
         }
         return parseSongsOnWorker(raw, limit = neteaseHomeSongLimitFor(source))
     }
 
     /** 将首页来源的请求参数集中在一起，避免登录态契约在调用点分散 */
-    private fun fetchSongSourceRaw(source: NeteaseHomeSongSource): String {
+    private fun fetchSongSourceRaw(
+        source: NeteaseHomeSongSource,
+        afreshDailyRecommend: Boolean = false
+    ): String {
         return when (source) {
             NeteaseHomeSongSource.TOP_SOARING -> client.getPlaylistDetail(
                 playlistId = NETEASE_TOPLIST_SOARING_ID,
@@ -1169,7 +1189,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 s = 0
             )
             NeteaseHomeSongSource.DAILY_RECOMMEND -> client.getDailyRecommendedSongs(
-                afresh = true
+                afresh = shouldRequestDailyRecommendAfresh(source, afreshDailyRecommend)
             )
             NeteaseHomeSongSource.PRIVATE_FM -> client.getPersonalFmSongs()
             NeteaseHomeSongSource.PERSONALIZED_NEW_SONGS -> client.getPersonalizedNewSongs(
