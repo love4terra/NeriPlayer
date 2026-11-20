@@ -4,7 +4,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import moe.ouom.neriplayer.data.identity.stableKey
 import moe.ouom.neriplayer.data.model.SongItem
@@ -336,7 +335,7 @@ class BiliPlaybackScrobbleController(
             }
             cancelHeartbeatJobLocked()
             heartbeatJob = launchSafe {
-                while (isActive) {
+                while (true) {
                     delay(heartbeatIntervalMs)
                     val payload = synchronized(lock) {
                         val current = activeSession ?: return@synchronized null
