@@ -98,18 +98,32 @@ jobs:
           ORG_GRADLE_PROJECT_KEYSTORE_PASSWORD: ${{ steps.signing.outputs.keystore_password }}
           ORG_GRADLE_PROJECT_KEY_ALIAS: ${{ steps.signing.outputs.key_alias }}
           ORG_GRADLE_PROJECT_KEY_PASSWORD: ${{ steps.signing.outputs.key_password }}
-        run: >-
-          ./gradlew
-          verifyModuleBoundaries
-          :platform:verifyDomainDependencies
-          :app:verifyDomainDependencies
-          testDebugUnitTest
-          :app:lintDebug
-          :app:assembleRelease
-          --no-daemon
-          --max-workers=2
-          --warning-mode all
-          --stacktrace
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew \
+            verifyModuleBoundaries \
+            :platform:verifyDomainDependencies \
+            :app:verifyDomainDependencies \
+            testDebugUnitTest \
+            :app:lintDebug \
+            :app:assembleRelease \
+            --no-daemon \
+            --max-workers=2 \
+            --warning-mode all \
+            --stacktrace 2>&1 | tee gradle-build.log
+
+      - name: Surface Gradle errors as annotations
+        if: failure()
+        shell: bash
+        run: |
+          # Kotlin compile errors, failed tasks and failed tests, so they are readable without admin log access
+          grep -E '^e: |^w: .*error|FAILED$|error: |What went wrong|Execution failed|> Task .* FAILED|AssertionError|Exception:' gradle-build.log \
+            | grep -v 'org.gradle' | head -n 40 \
+            | while IFS= read -r line; do
+                clean=$(printf '%s' "$line" | sed 's#file:///home/runner/work/NeriPlayer/NeriPlayer/##' | cut -c1-400)
+                echo "::error::$clean"
+              done || true
 
       - name: Upload Gradle test reports
         if: always()
