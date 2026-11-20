@@ -140,3 +140,4 @@ jobs:
           if-no-files-found: error
           path: |
             app/build/outputs/apk/release/*.apk
+# retrigger
