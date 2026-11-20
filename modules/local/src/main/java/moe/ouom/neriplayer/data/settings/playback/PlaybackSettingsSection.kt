@@ -541,4 +541,17 @@ abstract class PlaybackSettingsSection protected constructor() {
         titleRes = CoreCommonR.string.settings_netease_local_scrobble_enabled,
         descriptionRes = CoreCommonR.string.settings_netease_local_scrobble_enabled_desc
     )
+
+    @AutoSetting(
+        key = "bili_scrobble_enabled",
+        type = SettingValueType.Boolean,
+        defaultBoolean = true,
+        order = 183,
+        ui = SettingUiType.Custom,
+        access = SettingAccessMode.KeyOnly
+    )
+    val biliScrobbleEnabled = autoSetting(
+        titleRes = CoreCommonR.string.settings_bili_scrobble_enabled,
+        descriptionRes = CoreCommonR.string.settings_bili_scrobble_enabled_desc
+    )
 }

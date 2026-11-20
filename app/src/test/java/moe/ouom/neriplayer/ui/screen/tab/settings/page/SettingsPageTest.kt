@@ -154,6 +154,9 @@ class SettingsPageTest {
         val neteaseLocalScrobble = AutoSettingsMetadata.settings.first {
             it.keyName == "netease_local_scrobble_enabled"
         }
+        val biliScrobble = AutoSettingsMetadata.settings.first {
+            it.keyName == "bili_scrobble_enabled"
+        }
         val downloadNeteaseSource = AutoSettingsMetadata.settings.first {
             it.keyName == "download_netease_source"
         }
@@ -167,6 +170,7 @@ class SettingsPageTest {
         assertEquals(SettingsPage.PlaybackSource, neteasePlaybackSource.settingsPage())
         assertEquals(SettingsPage.PlaybackSource, neteaseScrobble.settingsPage())
         assertEquals(SettingsPage.PlaybackSource, neteaseLocalScrobble.settingsPage())
+        assertEquals(SettingsPage.PlaybackSource, biliScrobble.settingsPage())
         assertEquals(SettingsPage.Downloads, downloadNeteaseSource.settingsPage())
         assertEquals(SettingsPage.PlaybackSource, autoSourceSwitch.settingsPage())
         assertEquals(SettingsPage.PlaybackSource, localSourceFallback.settingsPage())

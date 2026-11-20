@@ -203,6 +203,12 @@ class SettingsRepositorySnapshotWriteThroughTest {
                 PlaybackPreferenceSnapshot::neteaseLocalScrobbleEnabled
             ),
             PlaybackToggle(
+                "biliScrobbleEnabled",
+                repository::setBiliScrobbleEnabled,
+                repository.biliScrobbleEnabledFlow,
+                PlaybackPreferenceSnapshot::biliScrobbleEnabled
+            ),
+            PlaybackToggle(
                 "stopOnBluetoothDisconnect",
                 repository::setStopOnBluetoothDisconnect,
                 repository.stopOnBluetoothDisconnectFlow,

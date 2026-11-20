@@ -96,6 +96,7 @@ class HomeBilibiliInternationalizationTest {
         replaceLazy("biliClient", biliClient)
         preserveBilibiliCache()
         runBlocking {
+            `when`(biliClient.getPopularVideos(anyInt(), anyInt())).thenReturn(listOf(song))
             `when`(biliClient.getCopyrightMusicRankPeriods(anyInt())).thenReturn(listOf(period))
             `when`(biliClient.getCopyrightMusicRankSongs(anyLong())).thenReturn(listOf(song))
             `when`(biliClient.getMusicHotRankVideos()).thenReturn(listOf(hotVideo))
@@ -166,9 +167,9 @@ class HomeBilibiliInternationalizationTest {
 
     @Test
     fun `international switch cancels running loads and rejects their late success and failure`() = homeTest {
-        lateinit var rankResponse: Continuation<List<BiliMusicRankPeriod>>
+        lateinit var rankResponse: Continuation<List<BiliMusicRankSong>>
         lateinit var hotResponse: Continuation<List<BiliMusicHotVideo>>
-        `when`(biliClient.getCopyrightMusicRankPeriods(anyInt())).thenAnswer { invocation ->
+        `when`(biliClient.getPopularVideos(anyInt(), anyInt())).thenAnswer { invocation ->
             rankResponse = continuation(invocation.rawArguments.last())
             COROUTINE_SUSPENDED
         }
@@ -190,10 +191,28 @@ class HomeBilibiliInternationalizationTest {
         assertTrue(hotJob.isCancelled)
         assertHidden(vm)
 
-        rankResponse.resume(listOf(period))
+        rankResponse.resume(listOf(song))
         hotResponse.resumeWithException(IOException("late fixture failure"))
         runCurrent()
         assertHidden(vm)
+    }
+
+    @Test
+    fun `popular rank loads without copyright periods while original rank loads copyright periods`() = homeTest {
+        val vm = createViewModel()
+        vm.loadBiliMusicHome(force = true)
+        runCurrent()
+
+        assertEquals(BiliMusicRankType.HOT, vm.uiState.value.biliMusicRank.type)
+        assertEquals(null, vm.uiState.value.biliMusicRank.period)
+        assertEquals(listOf(song), vm.uiState.value.biliMusicRank.songs)
+
+        vm.selectBiliMusicRankType(BiliMusicRankType.ORIGINAL)
+        runCurrent()
+
+        assertEquals(BiliMusicRankType.ORIGINAL, vm.uiState.value.biliMusicRank.type)
+        assertEquals(period, vm.uiState.value.biliMusicRank.period)
+        assertEquals(listOf(song), vm.uiState.value.biliMusicRank.songs)
     }
 
     private var viewModel: HomeViewModel? = null

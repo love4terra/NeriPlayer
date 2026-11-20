@@ -44,7 +44,7 @@
     <string name="home_bili_music_rank">Bilibili 音乐榜</string>
     <string name="home_bili_music_hot">Bilibili 音乐热门</string>
     <string name="home_bili_music_view_all">查看全部</string>
-    <string name="home_bili_music_rank_hot">热门榜</string>
+    <string name="home_bili_music_rank_hot">综合热门</string>
     <string name="home_bili_music_rank_original">原创榜</string>
     <string name="home_bili_music_rank_period" formatted="false">第 %1$d 期</string>
     <string name="home_bili_music_rank_updated">更新时间：%1$s</string>

@@ -113,6 +113,7 @@ private const val PLAYBACK_NETEASE_LOCAL_SOURCE_FALLBACK_KEY = "netease_local_so
 private const val PLAYBACK_NETEASE_PLAYBACK_SOURCE_KEY = "netease_playback_source"
 private const val PLAYBACK_NETEASE_SCROBBLE_ENABLED_KEY = "netease_scrobble_enabled"
 private const val PLAYBACK_NETEASE_LOCAL_SCROBBLE_ENABLED_KEY = "netease_local_scrobble_enabled"
+private const val PLAYBACK_BILI_SCROBBLE_ENABLED_KEY = "bili_scrobble_enabled"
 private const val PLAYBACK_FADE_IN_KEY = "playback_fade_in"
 private const val PLAYBACK_CROSSFADE_NEXT_KEY = "playback_crossfade_next"
 private const val PLAYBACK_SLEEP_TIMER_FINISH_CURRENT_ON_EXPIRY_KEY =
@@ -283,6 +284,10 @@ private fun persistNormalizedPlaybackPreferenceSnapshot(
                     PLAYBACK_NETEASE_LOCAL_SCROBBLE_ENABLED_KEY,
                     normalizedSnapshot.neteaseLocalScrobbleEnabled
                 )
+                .putBoolean(
+                    PLAYBACK_BILI_SCROBBLE_ENABLED_KEY,
+                    normalizedSnapshot.biliScrobbleEnabled
+                )
                 .putBoolean(PLAYBACK_FADE_IN_KEY, normalizedSnapshot.playbackFadeIn)
                 .putBoolean(PLAYBACK_CROSSFADE_NEXT_KEY, normalizedSnapshot.playbackCrossfadeNext)
                 .putBoolean(
@@ -429,6 +434,7 @@ fun Preferences.toPlaybackPreferenceSnapshot(): PlaybackPreferenceSnapshot {
         ),
         neteaseScrobbleEnabled = valueOr(SettingsKeys.NETEASE_SCROBBLE_ENABLED, true),
         neteaseLocalScrobbleEnabled = valueOr(SettingsKeys.NETEASE_LOCAL_SCROBBLE_ENABLED, true),
+        biliScrobbleEnabled = valueOr(SettingsKeys.BILI_SCROBBLE_ENABLED, true),
         playbackFadeIn = valueOr(SettingsKeys.PLAYBACK_FADE_IN, true),
         playbackCrossfadeNext = valueOr(SettingsKeys.PLAYBACK_CROSSFADE_NEXT, true),
         sleepTimerFinishCurrentOnExpiry = valueOr(SettingsKeys.PLAYBACK_SLEEP_TIMER_FINISH_CURRENT_ON_EXPIRY, false),
@@ -564,6 +570,8 @@ private fun SharedPreferences.toCachedPlaybackPreferenceSnapshot(): PlaybackPref
             prefs.getBoolean(PLAYBACK_NETEASE_SCROBBLE_ENABLED_KEY, true),
         neteaseLocalScrobbleEnabled =
             prefs.getBoolean(PLAYBACK_NETEASE_LOCAL_SCROBBLE_ENABLED_KEY, true),
+        biliScrobbleEnabled =
+            prefs.getBoolean(PLAYBACK_BILI_SCROBBLE_ENABLED_KEY, true),
         playbackFadeIn = prefs.getBoolean(PLAYBACK_FADE_IN_KEY, true),
         playbackCrossfadeNext = prefs.getBoolean(PLAYBACK_CROSSFADE_NEXT_KEY, true),
         sleepTimerFinishCurrentOnExpiry = prefs.getBoolean(

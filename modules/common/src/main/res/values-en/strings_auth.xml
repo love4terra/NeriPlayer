@@ -59,6 +59,8 @@
     <string name="settings_netease_scrobble_enabled_desc">Report playback start and listen duration to NetEase weblog while signed in</string>
     <string name="settings_netease_local_scrobble_enabled">Scrobble Matched Local Songs</string>
     <string name="settings_netease_local_scrobble_enabled_desc">Strictly match local audio files on NetEase before scrobbling; skip if no exact match is found</string>
+    <string name="settings_bili_scrobble_enabled">Sync Bilibili Watch History</string>
+    <string name="settings_bili_scrobble_enabled_desc">Report playback heartbeats to Bilibili history while signed in</string>
     <string name="settings_youtube_playback_source">YouTube Playback Source</string>
     <string name="settings_youtube_playback_source_desc">Choose the preferred YouTube playback client; unavailable clients fall back to the remaining sources</string>
     <string name="settings_youtube_playback_source_web_remix">Web Remix Low Latency</string>

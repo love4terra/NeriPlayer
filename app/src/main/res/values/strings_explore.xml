@@ -2,6 +2,18 @@
 <resources>
     <!-- Explore & Tags -->
     <string name="explore_bili_desc">在哔哩哔哩中发现更多精彩视频</string>
+    <string name="explore_bili_personalized_hint">首页 · 个人推荐音乐分区</string>
+    <string name="explore_bili_default_hint">首页 · 音乐分区默认推荐</string>
+    <string name="explore_bili_refresh">刷新 B 站音乐推荐</string>
+    <string name="bili_tag_recommend">推荐</string>
+    <string name="bili_tag_original">原创音乐</string>
+    <string name="bili_tag_cover">翻唱</string>
+    <string name="bili_tag_vocaloid">VOCALOID</string>
+    <string name="bili_tag_perform">演奏</string>
+    <string name="bili_tag_live">音乐现场</string>
+    <string name="bili_tag_mv">MV</string>
+    <string name="bili_tag_general">音乐综合</string>
+    <string name="bili_tag_commentary">乐评盘点</string>
     <string name="explore_offline_disabled">探索需要网络连接，恢复网络后会自动启用。</string>
     <string name="explore_tag_youtube_music">YouTube</string>
     <string name="tag_all">全部</string>

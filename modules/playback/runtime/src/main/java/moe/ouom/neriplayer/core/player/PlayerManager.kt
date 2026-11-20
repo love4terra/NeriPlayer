@@ -43,6 +43,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import moe.ouom.neriplayer.core.player.scrobble.BiliPlaybackScrobbleController
 import moe.ouom.neriplayer.core.player.scrobble.NeteasePlaybackScrobbleController
 import moe.ouom.neriplayer.data.model.netease.playback.NeteaseAudioSourcePreference
 import kotlinx.coroutines.SupervisorJob
@@ -499,6 +500,10 @@ object PlayerManager {
     internal var neteaseLocalScrobbleEnabled = true
     @Volatile
     internal var neteaseScrobbleController: NeteasePlaybackScrobbleController? = null
+    @Volatile
+    internal var biliScrobbleEnabled = true
+    @Volatile
+    internal var biliScrobbleController: BiliPlaybackScrobbleController? = null
     internal var stopOnBluetoothDisconnectEnabled = true
     @Volatile
     var usbExclusivePlaybackEnabled = false
@@ -833,6 +838,7 @@ object PlayerManager {
         )
         if (initialized) {
             neteaseScrobbleController?.onSongChanged(song)
+            biliScrobbleController?.onSongChanged(song)
         }
     }
 

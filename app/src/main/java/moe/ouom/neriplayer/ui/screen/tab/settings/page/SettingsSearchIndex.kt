@@ -115,6 +115,7 @@ internal fun AutoSettingInfo.settingsPage(): SettingsPage? {
         keyName == "netease_playback_source" ||
         keyName == "netease_scrobble_enabled" ||
         keyName == "netease_local_scrobble_enabled" ||
+        keyName == "bili_scrobble_enabled" ||
         keyName == "netease_auto_source_switch" ||
         keyName == "netease_local_source_fallback"
     ) {
@@ -1094,6 +1095,14 @@ private val SettingSearchAliases = mapOf(
         "本地歌曲上报",
         "本地听歌记录",
         "网易云打卡"
+    ),
+    "bili_scrobble_enabled" to listOf(
+        "bilibili scrobble",
+        "bilibili history",
+        "heartbeat",
+        "b站播放记录",
+        "哔哩哔哩历史",
+        "b站打卡"
     ),
     "netease_auto_source_switch" to listOf(
         "auto source",

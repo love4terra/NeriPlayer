@@ -2,6 +2,18 @@
 <resources>
     <!-- Explore & Tags -->
     <string name="explore_bili_desc">Discover more exciting videos on Bilibili</string>
+    <string name="explore_bili_personalized_hint">Home · Personalized Music Zone</string>
+    <string name="explore_bili_default_hint">Home · Default Music Zone</string>
+    <string name="explore_bili_refresh">Refresh Bilibili music feed</string>
+    <string name="bili_tag_recommend">For You</string>
+    <string name="bili_tag_original">Original</string>
+    <string name="bili_tag_cover">Cover</string>
+    <string name="bili_tag_vocaloid">VOCALOID</string>
+    <string name="bili_tag_perform">Instrument</string>
+    <string name="bili_tag_live">Live</string>
+    <string name="bili_tag_mv">MV</string>
+    <string name="bili_tag_general">General</string>
+    <string name="bili_tag_commentary">Commentary</string>
     <string name="explore_offline_disabled">Explore requires a network connection and will be re-enabled automatically when the network is restored.</string>
     <string name="explore_tag_youtube_music">YouTube Music</string>
     <string name="tag_all">All</string>

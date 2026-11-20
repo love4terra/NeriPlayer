@@ -1736,6 +1736,20 @@ private suspend fun PlayerManager.getBiliAudioUrl(
             return@withContext SongUrlResult.Failure
         }
 
+        val resolvedDurationSec = resolved.pageInfo
+            ?.durationSec
+            ?.takeIf { it > 0 }
+            ?: resolved.videoInfo.durationSec.takeIf { it > 0 }
+            ?: (song.durationMs / 1_000L).toInt().coerceAtLeast(0)
+        if (_currentSongFlow.value?.sameIdentityAs(song) == true) {
+            biliScrobbleController?.onTrackResolved(
+                song = song,
+                aid = resolved.videoInfo.aid,
+                bvid = resolved.videoInfo.bvid,
+                cid = resolved.cid,
+                durationSec = resolvedDurationSec
+            )
+        }
         if (!isListenTogetherActive() && _currentSongFlow.value?.sameIdentityAs(song) == true) {
             val requestToken = playbackRequestTokenOverride ?: playbackRequestToken
             BiliSponsorBlockPlaybackController.onBiliTrackResolved(

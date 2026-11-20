@@ -188,6 +188,7 @@ class PlaybackPreferenceSnapshotTest {
         assertEquals("gd_music_first", snapshot.neteasePlaybackSource)
         assertTrue(snapshot.neteaseScrobbleEnabled)
         assertTrue(snapshot.neteaseLocalScrobbleEnabled)
+        assertTrue(snapshot.biliScrobbleEnabled)
         assertFalse(snapshot.allowMixedPlayback)
         assertTrue(snapshot.playbackFadeIn)
         assertTrue(snapshot.playbackCrossfadeNext)

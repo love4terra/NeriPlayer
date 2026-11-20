@@ -1069,6 +1069,33 @@ internal fun SettingsScreen(
                                         playbackActions.onNeteaseLocalScrobbleEnabledChange(!playbackState.playbackSources.neteaseLocalScrobbleEnabled)
                                     }
                                 )
+                                AutoSettingsListItem(
+                                    setting = AutoSettingsMetadata.requireSetting(
+                                        AutoSettingsKeys.BILI_SCROBBLE_ENABLED
+                                    ),
+                                    leadingContent = {
+                                        Icon(
+                                            imageVector = Icons.Outlined.History,
+                                            contentDescription = stringResource(
+                                                CoreCommonR.string.settings_bili_scrobble_enabled
+                                            ),
+                                            modifier = Modifier.size(24.dp),
+                                            tint = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    },
+                                    trailingContent = {
+                                        MiuixSettingsSwitch(
+                                            checked = playbackState.playbackSources.biliScrobbleEnabled,
+                                            onCheckedChange = playbackActions.onBiliScrobbleEnabledChange
+                                        )
+                                    },
+                                    highlightTargetId = settingsHighlightTargetId,
+                                    highlightPulse = settingsHighlightPulse,
+                                    onHighlightFinished = onSettingsHighlightFinished,
+                                    onClick = {
+                                        playbackActions.onBiliScrobbleEnabledChange(!playbackState.playbackSources.biliScrobbleEnabled)
+                                    }
+                                )
                             }
                         },
 

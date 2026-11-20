@@ -88,7 +88,8 @@ internal data class AppPlaybackSourcesSettingsState(
     val allowMixedPlayback: Boolean,
     val preemptAudioFocus: Boolean,
     val neteaseScrobbleEnabled: Boolean,
-    val neteaseLocalScrobbleEnabled: Boolean
+    val neteaseLocalScrobbleEnabled: Boolean,
+    val biliScrobbleEnabled: Boolean
 )
 
 internal data class AppDefaultAudioQualitySettingsState(
@@ -289,15 +290,17 @@ private fun playbackSourcesSettingsFlow(repo: SettingsRepository): Flow<AppPlayb
             listOf(autoSwitch, localFallback, allowMixed, preemptFocus)
         },
         repo.neteaseScrobbleEnabledFlow,
-        repo.neteaseLocalScrobbleEnabledFlow
-    ) { flags, scrobbleEnabled, localScrobbleEnabled ->
+        repo.neteaseLocalScrobbleEnabledFlow,
+        repo.biliScrobbleEnabledFlow
+    ) { flags, scrobbleEnabled, localScrobbleEnabled, biliScrobbleEnabled ->
         AppPlaybackSourcesSettingsState(
             neteaseAutoSourceSwitch = flags[0],
             neteaseLocalSourceFallback = flags[1],
             allowMixedPlayback = flags[2],
             preemptAudioFocus = flags[3],
             neteaseScrobbleEnabled = scrobbleEnabled,
-            neteaseLocalScrobbleEnabled = localScrobbleEnabled
+            neteaseLocalScrobbleEnabled = localScrobbleEnabled,
+            biliScrobbleEnabled = biliScrobbleEnabled
         )
     }
 
@@ -452,7 +455,8 @@ internal fun initialAppSettingsRouteState(
             allowMixedPlayback = false,
             preemptAudioFocus = startupPlaybackPreferences.preemptAudioFocus,
             neteaseScrobbleEnabled = startupPlaybackPreferences.neteaseScrobbleEnabled,
-            neteaseLocalScrobbleEnabled = startupPlaybackPreferences.neteaseLocalScrobbleEnabled
+            neteaseLocalScrobbleEnabled = startupPlaybackPreferences.neteaseLocalScrobbleEnabled,
+            biliScrobbleEnabled = startupPlaybackPreferences.biliScrobbleEnabled
         ),
         defaultAudioQuality = AppDefaultAudioQualitySettingsState(
             preferredQuality = "exhigh",

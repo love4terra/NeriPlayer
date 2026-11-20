@@ -429,8 +429,8 @@ class AutoSettingsGeneratedTest {
     fun inheritedPlaybackSectionKeepsEveryGeneratedSetting() {
         val settings = AutoSettingsMetadata.settingsIn(AutoSettingsSections.playback)
 
-        assertEquals(44, settings.size)
-        assertEquals(44, settings.map { it.keyName }.toSet().size)
+        assertEquals(45, settings.size)
+        assertEquals(45, settings.map { it.keyName }.toSet().size)
         assertEquals("playback_fade_in", settings.first().keyName)
         assertEquals(
             AutoSettingsSections.playback,
@@ -451,6 +451,10 @@ class AutoSettingsGeneratedTest {
         assertEquals(
             "netease_local_scrobble_enabled",
             AutoSettingsMetadata.requireSetting(SettingsKeys.NETEASE_LOCAL_SCROBBLE_ENABLED).keyName
+        )
+        assertEquals(
+            "bili_scrobble_enabled",
+            AutoSettingsMetadata.requireSetting(SettingsKeys.BILI_SCROBBLE_ENABLED).keyName
         )
         assertEquals(
             AutoSettingsSections.download,

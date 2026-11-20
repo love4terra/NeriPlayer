@@ -5,10 +5,12 @@ import moe.ouom.neriplayer.core.player.PlayerManager
 import moe.ouom.neriplayer.core.player.createNeteaseScrobbleTrack
 import moe.ouom.neriplayer.core.player.host.PlayerDependencies
 import moe.ouom.neriplayer.core.player.host.settingsRepo
+import moe.ouom.neriplayer.core.player.scrobble.BiliPlaybackScrobbleController
 import moe.ouom.neriplayer.core.player.scrobble.NeteasePlaybackScrobbleController
 import moe.ouom.neriplayer.data.model.netease.playback.NeteasePlaybackSourcePreferencePolicy
 import moe.ouom.neriplayer.data.model.playback.PlaybackAudioSource
 import moe.ouom.neriplayer.data.model.settings.playback.PlaybackPreferenceSnapshot
+import moe.ouom.neriplayer.platform.scrobble.BiliPlaybackHistoryReporter
 import moe.ouom.neriplayer.platform.scrobble.NeteaseWeblogReporter
 
 /**
@@ -27,6 +29,16 @@ internal fun PlayerManager.createNeteaseScrobbleController(): NeteasePlaybackScr
     )
 }
 
+internal fun PlayerManager.createBiliScrobbleController(): BiliPlaybackScrobbleController? {
+    val client = runCatching { PlayerDependencies.repositories.biliClient }.getOrNull()
+        ?: return null
+    return BiliPlaybackScrobbleController(
+        ioScopeProvider = { ioScope },
+        isScrobbleEnabled = { biliScrobbleEnabled },
+        reporter = BiliPlaybackHistoryReporter(client)
+    )
+}
+
 internal fun PlayerManager.applyInitialNeteaseSourceAndScrobblePreferences(
     initialPlaybackPreferences: PlaybackPreferenceSnapshot
 ) {
@@ -35,6 +47,7 @@ internal fun PlayerManager.applyInitialNeteaseSourceAndScrobblePreferences(
     )
     neteaseScrobbleEnabled = initialPlaybackPreferences.neteaseScrobbleEnabled
     neteaseLocalScrobbleEnabled = initialPlaybackPreferences.neteaseLocalScrobbleEnabled
+    biliScrobbleEnabled = initialPlaybackPreferences.biliScrobbleEnabled
     neteaseAutoSourceSwitchEnabled = initialPlaybackPreferences.neteaseAutoSourceSwitch
     neteaseLocalSourceFallbackEnabled = initialPlaybackPreferences.neteaseLocalSourceFallback
 }
@@ -60,6 +73,11 @@ internal fun PlayerManager.observeNeteaseSourceAndScrobbleSettings() {
     ioScope.launch {
         settingsRepo.neteaseLocalScrobbleEnabledFlow.collect { enabled ->
             neteaseLocalScrobbleEnabled = enabled
+        }
+    }
+    ioScope.launch {
+        settingsRepo.biliScrobbleEnabledFlow.collect { enabled ->
+            biliScrobbleEnabled = enabled
         }
     }
     ioScope.launch {

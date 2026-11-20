@@ -72,9 +72,13 @@ import moe.ouom.neriplayer.platform.bilibili.api.parser.parseBiliSeriesArchivePa
 import moe.ouom.neriplayer.platform.bilibili.api.parser.parseBiliUploaderContentPage
 import moe.ouom.neriplayer.platform.bilibili.api.parser.parseBiliUploaderProfile
 import moe.ouom.neriplayer.platform.bilibili.api.parser.parseBiliUploaderVideoPage
+import moe.ouom.neriplayer.platform.bilibili.api.parser.parsePopularVideosAsRankSongs
+import moe.ouom.neriplayer.platform.bilibili.api.parser.parseRegionFeedVideos
+import moe.ouom.neriplayer.platform.bilibili.api.parser.parseRegionRankingVideos
 import moe.ouom.neriplayer.platform.bilibili.api.stream.prioritizeBiliStreamUrls
 import moe.ouom.neriplayer.common.logging.NPLogger
 import moe.ouom.neriplayer.network.proxy.DynamicProxySelector
+import okhttp3.FormBody
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -98,6 +102,16 @@ class BiliClient(
 
         // 官方接口 / WBI
         private const val BASE_PLAY_URL = "https://api.bilibili.com/x/player/wbi/playurl"
+        private const val POPULAR_VIDEOS_URL = "https://api.bilibili.com/x/web-interface/popular"
+        private const val REGION_FEED_RCMD_URL =
+            "https://api.bilibili.com/x/web-interface/region/feed/rcmd"
+        private const val RANKING_REGION_URL =
+            "https://api.bilibili.com/x/web-interface/ranking/region"
+        private const val PLAYBACK_HEARTBEAT_URL =
+            "https://api.bilibili.com/x/click-interface/web/heartbeat"
+        private const val MUSIC_FEED_REGION_ID = 1003
+        private const val DEFAULT_POPULAR_PAGE_SIZE = 50
+        private const val DEFAULT_FEED_REQUEST_COUNT = 20
         private const val NAV_URL = "https://api.bilibili.com/x/web-interface/nav"
         private const val WEB_TICKET_URL =
             "https://api.bilibili.com/bapis/bilibili.api.ticket.v1.Ticket/GenWebTicket"
@@ -1760,6 +1774,120 @@ class BiliClient(
             .get()
             .build()
         return subtitleHttp.newCall(req).executeOrThrow().use { it.body.string() }
+    }
+
+    /** 获取全站综合热门列表，映射为首页音乐榜可直接播放与展示的条目 */
+    suspend fun getPopularVideos(
+        page: Int = 1,
+        pageSize: Int = DEFAULT_POPULAR_PAGE_SIZE
+    ): List<BiliMusicRankSong> = withContext(Dispatchers.IO) {
+        val response = getJson(
+            baseUrl = POPULAR_VIDEOS_URL,
+            params = mapOf(
+                "pn" to page.coerceAtLeast(1).toString(),
+                "ps" to pageSize.coerceIn(1, 50).toString()
+            )
+        )
+        parsePopularVideosAsRankSongs(response.requireSuccessfulData("web-interface/popular"))
+    }
+
+    /** 获取首页音乐分区推荐流；登录后透传 SESSDATA 返回个性化推荐，未登录使用默认推荐 */
+    suspend fun getMusicRegionFeedVideos(
+        displayId: Int = 1,
+        requestCount: Int = DEFAULT_FEED_REQUEST_COUNT
+    ): List<BiliMusicHotVideo> = withContext(Dispatchers.IO) {
+        val url = REGION_FEED_RCMD_URL.toHttpUrl().newBuilder()
+            .addQueryParameter("display_id", displayId.coerceAtLeast(1).toString())
+            .addQueryParameter("request_cnt", requestCount.coerceIn(1, 30).toString())
+            .addQueryParameter("from_region", MUSIC_FEED_REGION_ID.toString())
+            .addQueryParameter("device", "web")
+            .addQueryParameter("plat", "30")
+            .build()
+        val cookieHeader = cookieSession.effectiveWebFeedCookies().toCookieHeader()
+        val req = Request.Builder()
+            .url(url)
+            .header("User-Agent", DEFAULT_WEB_UA)
+            .header("Referer", REFERER)
+            .header("Origin", "https://www.bilibili.com")
+            .apply { headerCookieIfPresent(cookieHeader) }
+            .get()
+            .build()
+        val body = http.newCall(req).executeOrThrow().use { it.body.string() }
+        val response = JSONObject(body)
+        parseRegionFeedVideos(response.requireSuccessfulData("web-interface/region/feed/rcmd"))
+    }
+
+    /** 获取音乐子分区榜单（day=7 与 original=0/1 组合由上层决定） */
+    suspend fun getRegionRankingVideos(
+        rid: Int,
+        day: Int = 7,
+        original: Int = 0
+    ): List<BiliMusicHotVideo> = withContext(Dispatchers.IO) {
+        val response = getJson(
+            baseUrl = RANKING_REGION_URL,
+            params = mapOf(
+                "rid" to rid.toString(),
+                "day" to day.toString(),
+                "original" to original.toString()
+            )
+        )
+        parseRegionRankingVideos(response.requireSuccessfulArray("web-interface/ranking/region"))
+    }
+
+    /** 上报 B 站 Web 端播放心跳，计入用户最近播放历史；未登录时静默跳过 */
+    suspend fun reportPlaybackHeartbeat(
+        aid: Long,
+        bvid: String,
+        cid: Long,
+        playedTimeSec: Long,
+        playType: Int,
+        startTsSec: Long
+    ): Boolean = withContext(Dispatchers.IO) {
+        val cookies = cookieRepo.getCookiesOnce()
+        val sessData = cookies["SESSDATA"]?.trim().orEmpty()
+        val csrf = cookies["bili_jct"]?.trim().orEmpty()
+        if (sessData.isEmpty() || csrf.isEmpty()) return@withContext false
+
+        val resolvedBvid = bvid.trim().ifBlank { BiliVideoIdCodec.aidToBvid(aid) }
+        val resolvedAid = if (aid > 0L) aid else BiliVideoIdCodec.bvidToAid(resolvedBvid)
+        if (resolvedAid <= 0L || resolvedBvid.isBlank() || cid <= 0L) return@withContext false
+
+        val form = FormBody.Builder()
+            .add("aid", resolvedAid.toString())
+            .add("bvid", resolvedBvid)
+            .add("cid", cid.toString())
+            .add("played_time", playedTimeSec.toString())
+            .add("real_played_time", playedTimeSec.coerceAtLeast(0L).toString())
+            .add("realtime", playedTimeSec.coerceAtLeast(0L).toString())
+            .add("start_ts", startTsSec.coerceAtLeast(0L).toString())
+            .add("play_type", playType.toString())
+            .add("type", "3")
+            .add("dt", "2")
+            .add("csrf", csrf)
+            .apply {
+                cookies["DedeUserID"]?.trim()?.takeIf { it.isNotEmpty() }?.let { add("mid", it) }
+            }
+            .build()
+        val request = Request.Builder()
+            .url(PLAYBACK_HEARTBEAT_URL)
+            .header("User-Agent", DEFAULT_WEB_UA)
+            .header("Referer", "https://www.bilibili.com/video/$resolvedBvid")
+            .header("Origin", "https://www.bilibili.com")
+            .apply { headerCookieIfPresent(cookies.toCookieHeader()) }
+            .post(form)
+            .build()
+        val body = http.newCall(request).executeOrThrow().use { it.body.string() }
+        val json = JSONObject(body)
+        val code = json.optInt("code", -1)
+        if (code != 0) {
+            NPLogger.w(
+                TAG,
+                "reportPlaybackHeartbeat non-zero code=$code msg=${json.optString("message")} bvid=$resolvedBvid playType=$playType"
+            )
+            false
+        } else {
+            true
+        }
     }
 
     // 评论 //

@@ -36,10 +36,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import moe.ouom.neriplayer.common.R as CoreCommonR
 import moe.ouom.neriplayer.data.model.bilibili.collection.FavFolder
+import moe.ouom.neriplayer.data.model.bilibili.music.BiliMusicHotVideo
 import moe.ouom.neriplayer.data.model.bilibili.search.SearchVideoItem
 import moe.ouom.neriplayer.data.model.bilibili.video.VideoBasicInfo
 import moe.ouom.neriplayer.data.model.bilibili.video.VideoPage
@@ -195,7 +199,17 @@ data class ExploreUiState(
     val isNeteaseLoggedIn: Boolean = false,
     val ytMusicPlaylists: List<YouTubeMusicPlaylist> = emptyList(),
     val ytMusicPlaylistsLoading: Boolean = false,
-    val ytMusicPlaylistsError: UiText? = null
+    val ytMusicPlaylistsError: UiText? = null,
+    val biliSelectedTag: String = BiliExploreTag.RECOMMEND.key,
+    val biliVideos: List<BiliMusicHotVideo> = emptyList(),
+    val biliSongs: List<SongItem> = emptyList(),
+    val biliLoading: Boolean = false,
+    val biliLoadingMore: Boolean = false,
+    val biliRefreshing: Boolean = false,
+    val biliHasMore: Boolean = false,
+    val biliPage: Int = 1,
+    val biliPersonalized: Boolean = false,
+    val biliError: UiText? = null
 )
 
 internal fun isNeteaseExploreSearchAvailable(authState: SavedCookieAuthState): Boolean {
@@ -343,6 +357,10 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     private var searchMoreJob: Job? = null
     private var ytMusicPlaylistsJob: Job? = null
     private var ytMusicPlaylistsPending = false
+    private var biliExploreJob: Job? = null
+    private var biliExploreMoreJob: Job? = null
+    private var biliExploreRequestVersion = 0L
+    private var biliCookieObserverStarted = false
     private var searchRequestVersion = 0L
     private var youtubeEnabled = YouTubeFeatureGate.isEnabled()
 
@@ -1366,6 +1384,139 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
                     }
                 }
             }
+        }
+    }
+
+    /** 加载 Bilibili 探索页首页音乐分区 / 子分区列表 */
+    fun loadBiliExplore(
+        tagKey: String = _uiState.value.biliSelectedTag,
+        force: Boolean = false,
+        isRefresh: Boolean = false
+    ) {
+        ensureBiliCookieObserver()
+        val targetTag = BiliExploreTag.fromKey(tagKey)
+        val current = _uiState.value
+        val sameTag = current.biliSelectedTag == targetTag.key
+        if (!force && sameTag && (current.biliVideos.isNotEmpty() || current.biliLoading)) {
+            return
+        }
+        val requestVersion = ++biliExploreRequestVersion
+        biliExploreJob?.cancel()
+        biliExploreMoreJob?.cancel()
+        _uiState.value = current.copy(
+            biliSelectedTag = targetTag.key,
+            biliLoading = !isRefresh,
+            biliRefreshing = isRefresh,
+            biliLoadingMore = false,
+            biliError = null,
+            biliVideos = if (sameTag && isRefresh) current.biliVideos else emptyList(),
+            biliSongs = if (sameTag && isRefresh) current.biliSongs else emptyList(),
+            biliHasMore = false,
+            biliPage = 1,
+            biliPersonalized = biliClient.hasLoginSession()
+        )
+        biliExploreJob = viewModelScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    loadBiliExplorePage(biliClient, targetTag, page = 1)
+                }
+                if (requestVersion != biliExploreRequestVersion) return@launch
+                _uiState.value = _uiState.value.copy(
+                    biliSelectedTag = targetTag.key,
+                    biliVideos = result.videos,
+                    biliSongs = result.songs,
+                    biliLoading = false,
+                    biliRefreshing = false,
+                    biliLoadingMore = false,
+                    biliHasMore = result.hasMore,
+                    biliPage = 1,
+                    biliPersonalized = result.personalized,
+                    biliError = null
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                NPLogger.e(TAG, "loadBiliExplore failed: tag=${targetTag.key}", e)
+                if (requestVersion != biliExploreRequestVersion) return@launch
+                _uiState.value = _uiState.value.copy(
+                    biliLoading = false,
+                    biliRefreshing = false,
+                    biliLoadingMore = false,
+                    biliError = feedbackText(
+                        CoreCommonR.string.error_bilibili_search,
+                        e.message ?: feedbackText(CoreCommonR.string.github_sync_failed_message)
+                    )
+                )
+            }
+        }
+    }
+
+    fun refreshBiliExplore() {
+        loadBiliExplore(
+            tagKey = _uiState.value.biliSelectedTag,
+            force = true,
+            isRefresh = true
+        )
+    }
+
+    fun loadMoreBiliExplore() {
+        val current = _uiState.value
+        val tag = BiliExploreTag.fromKey(current.biliSelectedTag)
+        if (tag != BiliExploreTag.RECOMMEND ||
+            !current.biliHasMore ||
+            current.biliLoading ||
+            current.biliRefreshing ||
+            current.biliLoadingMore ||
+            biliExploreMoreJob?.isActive == true
+        ) {
+            return
+        }
+        val nextPage = current.biliPage + 1
+        val requestVersion = biliExploreRequestVersion
+        _uiState.value = current.copy(biliLoadingMore = true)
+        biliExploreMoreJob = viewModelScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    loadBiliExplorePage(biliClient, tag, page = nextPage)
+                }
+                if (requestVersion != biliExploreRequestVersion) return@launch
+                val state = _uiState.value
+                val mergedVideos = mergeUniqueBiliVideos(state.biliVideos, result.videos)
+                _uiState.value = state.copy(
+                    biliVideos = mergedVideos,
+                    biliSongs = mergedVideos.map { it.toExploreSongItem() },
+                    biliLoadingMore = false,
+                    biliHasMore = result.hasMore && mergedVideos.size > state.biliVideos.size,
+                    biliPage = nextPage,
+                    biliPersonalized = result.personalized
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                NPLogger.w(TAG, "loadMoreBiliExplore failed: page=$nextPage", e)
+                if (requestVersion != biliExploreRequestVersion) return@launch
+                _uiState.value = _uiState.value.copy(
+                    biliLoadingMore = false,
+                    biliHasMore = false
+                )
+            }
+        }
+    }
+
+    private fun ensureBiliCookieObserver() {
+        if (biliCookieObserverStarted) return
+        biliCookieObserverStarted = true
+        viewModelScope.launch {
+            AppContainer.biliCookieRepo.cookieFlow
+                .map { !it["SESSDATA"].isNullOrBlank() }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect {
+                    loadBiliExplore(
+                        tagKey = _uiState.value.biliSelectedTag,
+                        force = true
+                    )
+                }
         }
     }
 

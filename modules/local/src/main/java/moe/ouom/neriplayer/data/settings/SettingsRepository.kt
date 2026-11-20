@@ -675,6 +675,9 @@ class SettingsRepository(private val context: Context) {
     val neteaseLocalScrobbleEnabledFlow: Flow<Boolean> =
         dataStoreSettingFlow { it[SettingsKeys.NETEASE_LOCAL_SCROBBLE_ENABLED] ?: true }
 
+    val biliScrobbleEnabledFlow: Flow<Boolean> =
+        dataStoreSettingFlow { it[SettingsKeys.BILI_SCROBBLE_ENABLED] ?: true }
+
     val stopOnBluetoothDisconnectFlow: Flow<Boolean> =
         dataStoreSettingFlow { it[SettingsKeys.STOP_ON_BLUETOOTH_DISCONNECT] ?: true }
 
@@ -846,6 +849,13 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { it[SettingsKeys.NETEASE_LOCAL_SCROBBLE_ENABLED] = enabled }
         updatePlaybackPreferenceSnapshot(context) {
             it.copy(neteaseLocalScrobbleEnabled = enabled)
+        }
+    }
+
+    suspend fun setBiliScrobbleEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[SettingsKeys.BILI_SCROBBLE_ENABLED] = enabled }
+        updatePlaybackPreferenceSnapshot(context) {
+            it.copy(biliScrobbleEnabled = enabled)
         }
     }
 

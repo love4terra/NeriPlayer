@@ -14,6 +14,7 @@ internal fun PlayerManager.syncPlaybackStatsPlayingStateImpl(
     playbackStatsOwner.onPlayingChanged(playing, reason, writesEnabled = initialized)
     if (initialized) {
         neteaseScrobbleController?.onPlayingChanged(playing)
+        biliScrobbleController?.onPlayingChanged(playing)
     }
 }
 
@@ -25,6 +26,10 @@ internal fun PlayerManager.syncPlaybackStatsEnginePlayingStateImpl(isPlaying: Bo
     )
     if (initialized) {
         neteaseScrobbleController?.onEnginePlayingChanged(
+            isPlaying,
+            playbackProgressAdvanceReported
+        )
+        biliScrobbleController?.onEnginePlayingChanged(
             isPlaying,
             playbackProgressAdvanceReported
         )
@@ -42,6 +47,7 @@ internal fun PlayerManager.flushPlaybackStatsBlockingImpl(
     playbackStatsOwner.flushBlocking(reason, stopTracking, writesEnabled = initialized)
     if (initialized && stopTracking) {
         neteaseScrobbleController?.flushOnStopOrRelease()
+        biliScrobbleController?.flushOnStopOrRelease()
     }
 }
 
@@ -52,6 +58,7 @@ internal fun PlayerManager.flushPlaybackStatsAsyncImpl(
     playbackStatsOwner.flushAsync(reason, stopTracking, writesEnabled = initialized)
     if (initialized && stopTracking) {
         neteaseScrobbleController?.flushOnStopOrRelease()
+        biliScrobbleController?.flushOnStopOrRelease()
     }
 }
 

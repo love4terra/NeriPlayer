@@ -360,6 +360,7 @@ private fun PlayerManager.prepareInitializationSession(app: Application, effecti
         AppPlaybackStatsPendingWrites.queue
     )
     neteaseScrobbleController = createNeteaseScrobbleController()
+    biliScrobbleController = createBiliScrobbleController()
     val appWasInForeground = usbExclusiveLivenessOwner.appInForeground
     usbExclusiveLivenessOwner.cancelJobs()
     usbExclusiveLivenessOwner = UsbExclusiveLivenessOwner(
@@ -1541,6 +1542,7 @@ private fun PlayerManager.completeInitialization(
     initialized = true
     _currentSongFlow.value?.let { restoredSong ->
         neteaseScrobbleController?.onSongChanged(restoredSong)
+        biliScrobbleController?.onSongChanged(restoredSong)
     }
     NPLogger.d(
         "NERI-PlayerManager",

@@ -42,6 +42,7 @@ data class PlaybackPreferenceSnapshot(
     val neteasePlaybackSource: String = DEFAULT_NETEASE_PLAYBACK_SOURCE,
     val neteaseScrobbleEnabled: Boolean = true,
     val neteaseLocalScrobbleEnabled: Boolean = true,
+    val biliScrobbleEnabled: Boolean = true,
     val playbackFadeIn: Boolean = true,
     val playbackCrossfadeNext: Boolean = true,
     val sleepTimerFinishCurrentOnExpiry: Boolean = false,

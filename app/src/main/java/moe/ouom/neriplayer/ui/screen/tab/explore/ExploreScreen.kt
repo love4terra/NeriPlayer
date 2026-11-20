@@ -476,6 +476,7 @@ fun ExploreScreen(
     val isTabletLayout = windowWidthDp >= 720.dp
     val searchPanelHorizontalPadding = if (isTabletLayout) 28.dp else 16.dp
     val youtubeGridState = rememberLazyGridState()
+    val biliGridState = rememberLazyGridState()
     val tagChipSelectedAlpha = if (backgroundImageUri == null) 1f else 0.86f
     val tagChipUnselectedAlpha = if (backgroundImageUri == null) 1f else 0.74f
     val tagChipBorderAlpha = if (backgroundImageUri == null) 1f else 0.58f
@@ -518,6 +519,31 @@ fun ExploreScreen(
         selectedParts = emptySet()
     }
 
+    fun playBiliVideo(playlist: List<SongItem>, song: SongItem, songListIndex: Int) {
+        if (shouldShowBiliPartsPicker(song)) {
+            scope.launch {
+                try {
+                    val info = vm.getVideoInfoByAvid(song.id)
+                    if (info.pages.size <= 1) {
+                        onSongClick(playlist, songListIndex)
+                    } else {
+                        partsInfo = info
+                        clickedSongCoverUrl = song.coverUrl ?: ""
+                        showPartsSheet = true
+                    }
+                } catch (e: Exception) {
+                    NPLogger.e(
+                        "ExploreScreen",
+                        composeResources.getString(CoreCommonR.string.search_error),
+                        e
+                    )
+                }
+            }
+        } else {
+            onSongClick(playlist, songListIndex)
+        }
+    }
+
     LaunchedEffect(Unit) {
         if (ui.playlists.isEmpty()) vm.loadHighQuality()
     }
@@ -539,6 +565,9 @@ fun ExploreScreen(
         }
         if (currentSource == SearchSource.YOUTUBE_MUSIC && ui.ytMusicPlaylists.isEmpty()) {
             vm.loadYtMusicPlaylists()
+        }
+        if (currentSource == SearchSource.BILIBILI && ui.biliVideos.isEmpty()) {
+            vm.loadBiliExplore()
         }
     }
 
@@ -709,6 +738,12 @@ fun ExploreScreen(
                     shouldAllowCollapsingTopAppBar(
                         canScrollForward = youtubeGridState.canScrollForward,
                         canScrollBackward = youtubeGridState.canScrollBackward,
+                        collapsedFraction = topAppBarState.collapsedFraction
+                    )
+                ui.selectedSearchSource == SearchSource.BILIBILI ->
+                    shouldAllowCollapsingTopAppBar(
+                        canScrollForward = biliGridState.canScrollForward,
+                        canScrollBackward = biliGridState.canScrollBackward,
                         collapsedFraction = topAppBarState.collapsedFraction
                     )
                 else -> shouldAllowCollapsingTopAppBar(
@@ -971,36 +1006,11 @@ fun ExploreScreen(
                                                 ),
                                                 actions = ExploreSongRowActions(
                                                     onClick = {
-                                                        if (shouldShowBiliPartsPicker(song)) {
-                                                            scope.launch {
-                                                                try {
-                                                                    val info =
-                                                                        vm.getVideoInfoByAvid(song.id)
-                                                                    if (info.pages.size <= 1) {
-                                                                        onSongClick(
-                                                                            ui.searchResults,
-                                                                            songListIndex
-                                                                        )
-                                                                    } else {
-                                                                        partsInfo = info
-                                                                        clickedSongCoverUrl =
-                                                                            song.coverUrl ?: ""
-                                                                        showPartsSheet = true
-                                                                    }
-                                                                } catch (e: Exception) {
-                                                                    NPLogger.e(
-                                                                        "ExploreScreen",
-                                                                        composeResources.getString(CoreCommonR.string.search_error),
-                                                                        e
-                                                                    )
-                                                                }
-                                                            }
-                                                        } else {
-                                                            onSongClick(
-                                                                ui.searchResults,
-                                                                songListIndex
-                                                            )
-                                                        }
+                                                        playBiliVideo(
+                                                            playlist = ui.searchResults,
+                                                            song = song,
+                                                            songListIndex = songListIndex
+                                                        )
                                                     },
                                                     onPlayNow = { onSongPlayPreservingQueue(song) },
                                                     onPlayNext = { onSongPlayNext(song) },
@@ -1146,9 +1156,44 @@ fun ExploreScreen(
                             )
                         }
                         SearchSource.BILIBILI -> {
-                            Box(Modifier.fillMaxSize(), Alignment.Center) {
-                                Text(stringResource(AppR.string.explore_bili_desc), style = MaterialTheme.typography.bodyLarge)
-                            }
+                            val biliTags = listOf(
+                                BiliExploreTagOption("recommend", stringResource(AppR.string.bili_tag_recommend)),
+                                BiliExploreTagOption("original", stringResource(AppR.string.bili_tag_original)),
+                                BiliExploreTagOption("cover", stringResource(AppR.string.bili_tag_cover)),
+                                BiliExploreTagOption("vocaloid", stringResource(AppR.string.bili_tag_vocaloid)),
+                                BiliExploreTagOption("perform", stringResource(AppR.string.bili_tag_perform)),
+                                BiliExploreTagOption("live", stringResource(AppR.string.bili_tag_live)),
+                                BiliExploreTagOption("mv", stringResource(AppR.string.bili_tag_mv)),
+                                BiliExploreTagOption("general", stringResource(AppR.string.bili_tag_general)),
+                                BiliExploreTagOption("commentary", stringResource(AppR.string.bili_tag_commentary))
+                            )
+                            BiliExploreContent(
+                                browse = BiliBrowseState(
+                                    selectedTag = ui.biliSelectedTag,
+                                    videos = ui.biliVideos,
+                                    loading = ui.biliLoading,
+                                    loadingMore = ui.biliLoadingMore,
+                                    refreshing = ui.biliRefreshing,
+                                    hasMore = ui.biliHasMore,
+                                    personalized = ui.biliPersonalized,
+                                    error = ui.biliError?.asString()
+                                ),
+                                tags = biliTags,
+                                offlineMode = offlineMode,
+                                isTabletLayout = isTabletLayout,
+                                miniPlayerHeight = miniPlayerHeight,
+                                gridState = biliGridState,
+                                tagChipSelectedAlpha = tagChipSelectedAlpha,
+                                tagChipUnselectedAlpha = tagChipUnselectedAlpha,
+                                tagChipBorderAlpha = tagChipBorderAlpha,
+                                onTagSelected = { key -> vm.loadBiliExplore(tagKey = key) },
+                                onRefresh = vm::refreshBiliExplore,
+                                onLoadMore = vm::loadMoreBiliExplore,
+                                onVideoClick = { index ->
+                                    val clicked = ui.biliSongs.getOrNull(index) ?: return@BiliExploreContent
+                                    playBiliVideo(ui.biliSongs, clicked, index)
+                                }
+                            )
                         }
                         SearchSource.YOUTUBE_MUSIC -> {
                             YouTubeMusicExploreContent(

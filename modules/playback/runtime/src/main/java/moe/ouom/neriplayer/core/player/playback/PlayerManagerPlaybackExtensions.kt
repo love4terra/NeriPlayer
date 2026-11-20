@@ -1208,6 +1208,7 @@ internal fun PlayerManager.handleTrackEndedIfNeededImpl(source: String) {
     playbackStatsOwner.onTrackEnded(writesEnabled = initialized)
     if (initialized) {
         neteaseScrobbleController?.onTrackEnded()
+        biliScrobbleController?.onTrackEnded()
     }
     handleTrackEnded()
 }
@@ -1833,6 +1834,7 @@ private fun PlayerManager.maybeReportProgressStats(positionMs: Long) {
 private fun PlayerManager.reportProgressStats(positionMs: Long) {
     if (initialized) {
         neteaseScrobbleController?.onProgress(positionMs)
+        biliScrobbleController?.onProgress(positionMs)
     }
     if (playbackStatsOwner.onProgress(positionMs, writesEnabled = initialized)) {
         markTrackEndHandledForStatsFallback()

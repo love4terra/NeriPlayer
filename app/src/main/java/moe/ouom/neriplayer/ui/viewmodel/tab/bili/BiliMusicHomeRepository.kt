@@ -76,18 +76,28 @@ object BiliMusicHomeRepository {
         if (!force) {
             cachedRank(type)?.let { return it }
         }
-        val periods = client.getCopyrightMusicRankPeriods(type.listType)
-        val latest = periods.maxWithOrNull(
-            compareBy<BiliMusicRankPeriod> { it.publishTimeSec }.thenBy { it.id }
-        ) ?: throw IOException("Bilibili music rank has no period, listType=${type.listType}")
-        val songs = resolveOfficialMvIds(client.getCopyrightMusicRankSongs(latest.id))
-        val snapshot = BiliMusicRankSnapshot(
-            type = type,
-            period = latest,
-            songs = songs,
-            fetchedAtMs = System.currentTimeMillis()
-        )
-        if (songs.isNotEmpty()) {
+        val snapshot = if (type == BiliMusicRankType.HOT) {
+            val songs = client.getPopularVideos()
+            BiliMusicRankSnapshot(
+                type = type,
+                period = null,
+                songs = songs,
+                fetchedAtMs = System.currentTimeMillis()
+            )
+        } else {
+            val periods = client.getCopyrightMusicRankPeriods(type.listType)
+            val latest = periods.maxWithOrNull(
+                compareBy<BiliMusicRankPeriod> { it.publishTimeSec }.thenBy { it.id }
+            ) ?: throw IOException("Bilibili music rank has no period, listType=${type.listType}")
+            val songs = resolveOfficialMvIds(client.getCopyrightMusicRankSongs(latest.id))
+            BiliMusicRankSnapshot(
+                type = type,
+                period = latest,
+                songs = songs,
+                fetchedAtMs = System.currentTimeMillis()
+            )
+        }
+        if (snapshot.songs.isNotEmpty()) {
             rankCache[type] = snapshot
         }
         return snapshot
