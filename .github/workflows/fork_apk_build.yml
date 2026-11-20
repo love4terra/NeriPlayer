@@ -20,8 +20,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-debug-apk:
-    name: Build Installable Debug APK
+  build-release-apk:
+    name: Build Installable Release APK (arm64-v8a)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -40,13 +40,64 @@ jobs:
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v5
 
+      - name: Cache persistent fork signing keystore
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: fork-release-debug-keystore-v1
+
+      - name: Prepare release signing keystore
+        id: signing
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${KEYSTORE_B64:-}" && -n "${KEYSTORE_PASSWORD:-}" && -n "${KEY_ALIAS:-}" && -n "${KEY_PASSWORD:-}" ]]; then
+            keystore_path="${RUNNER_TEMP}/fork-release.jks"
+            printf '%s' "$KEYSTORE_B64" | base64 -d > "$keystore_path"
+            {
+              echo "keystore_file=${keystore_path}"
+              echo "keystore_password=${KEYSTORE_PASSWORD}"
+              echo "key_alias=${KEY_ALIAS}"
+              echo "key_password=${KEY_PASSWORD}"
+            } >> "$GITHUB_OUTPUT"
+          else
+            keystore_path="${HOME}/.android/debug.keystore"
+            mkdir -p "$(dirname "$keystore_path")"
+            if [[ ! -f "$keystore_path" ]]; then
+              keytool -genkeypair -noprompt -v \
+                -keystore "$keystore_path" \
+                -storepass android \
+                -alias androiddebugkey \
+                -keypass android \
+                -keyalg RSA \
+                -keysize 2048 \
+                -validity 10000 \
+                -dname "CN=Android Debug,O=Android,C=US"
+            fi
+            {
+              echo "keystore_file=${keystore_path}"
+              echo "keystore_password=android"
+              echo "key_alias=androiddebugkey"
+              echo "key_password=android"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Grant execute permission
         run: chmod +x gradlew
 
       - name: Install Android NDK
         uses: ./.github/actions/android-ndk
 
-      - name: Verify boundaries, unit tests, lint and assemble Debug APK
+      - name: Verify boundaries, unit tests, lint and assemble Release APK (arm64-v8a)
+        env:
+          ORG_GRADLE_PROJECT_KEYSTORE_FILE: ${{ steps.signing.outputs.keystore_file }}
+          ORG_GRADLE_PROJECT_KEYSTORE_PASSWORD: ${{ steps.signing.outputs.keystore_password }}
+          ORG_GRADLE_PROJECT_KEY_ALIAS: ${{ steps.signing.outputs.key_alias }}
+          ORG_GRADLE_PROJECT_KEY_PASSWORD: ${{ steps.signing.outputs.key_password }}
         run: >-
           ./gradlew
           verifyModuleBoundaries
@@ -54,7 +105,7 @@ jobs:
           :app:verifyDomainDependencies
           testDebugUnitTest
           :app:lintDebug
-          :app:assembleDebug
+          :app:assembleRelease
           --no-daemon
           --max-workers=2
           --warning-mode all
@@ -68,10 +119,10 @@ jobs:
           path: |
             **/build/reports/tests/**
 
-      - name: Upload Installable Debug APK
+      - name: Upload Installable Release APK (arm64-v8a)
         uses: actions/upload-artifact@v6
         with:
-          name: neriplayer-debug-apk
+          name: neriplayer-release-apk
           if-no-files-found: error
           path: |
-            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
