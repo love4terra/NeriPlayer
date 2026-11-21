@@ -120,10 +120,23 @@ jobs:
         run: |
           # Emit compiler / test errors first (GitHub shows up to 10 annotations per step)
           sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' gradle-build.log > gradle-clean.log || cp gradle-build.log gradle-clean.log
-          (
-            grep -E '(^|[[:space:]])e: |\.kt:[0-9]+|error: |AssertionError|Violation|disallowed' gradle-clean.log | grep -v 'org\.gradle'
-            grep -B 20 -m 1 '> Task .* FAILED' gradle-clean.log | grep -vE '^(w:|Note:|> Task )'
-          ) | awk '!seen[$0]++' | head -n 10 \
+          filter_errors() {
+            grep -vE '^[[:space:]]*(w:|Note:|at )|org\.gradle' \
+              | grep -E '(^|[[:space:]])e: |[A-Za-z0-9_./-]+\.(kt|java|xml):[0-9]+|error: |AssertionError|Violation|disallowed|Execution failed for task' || true
+          }
+          {
+            grep -E '(^|[[:space:]])e: ' gradle-clean.log || true
+            filter_errors < gradle-clean.log
+            failed_task=$(grep -oE '> Task [^ ]+ FAILED' gradle-clean.log | awk '{print $3}' | head -n 1 || true)
+            if ! grep -qE '(^|[[:space:]])e: ' gradle-clean.log && [[ "$failed_task" == *compile* || "$failed_task" == *Kotlin* ]]; then
+              ./gradlew "$failed_task" --no-daemon --console=plain --info 2>&1 \
+                | sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' \
+                | grep -E '(^|[[:space:]])e: |error: |Unresolved|mismatch|conflict' \
+                | grep -vE '^[[:space:]]*(w:|Note:|at )|org\.gradle' || true
+            fi
+            grep -E ' FAILED$' gradle-clean.log | grep -vE '^> Task ' || true
+            grep -B 20 -m 1 '> Task .* FAILED' gradle-clean.log | grep -vE '^[[:space:]]*(w:|Note:|at )|> Task ' || true
+          } | awk '!seen[$0]++' | head -n 10 \
             | while IFS= read -r line; do
                 clean=$(printf '%s' "$line" | sed 's#file:///home/runner/work/NeriPlayer/NeriPlayer/##' | cut -c1-400)
                 echo "::error::$clean"

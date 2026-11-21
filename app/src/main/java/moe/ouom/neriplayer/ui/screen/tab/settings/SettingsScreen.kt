@@ -35,6 +35,7 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.AltRoute
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.outlined.ZoomInMap
 import androidx.compose.material3.ExperimentalMaterial3Api
