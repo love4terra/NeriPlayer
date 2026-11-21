@@ -200,7 +200,7 @@ data class ExploreUiState(
     val ytMusicPlaylists: List<YouTubeMusicPlaylist> = emptyList(),
     val ytMusicPlaylistsLoading: Boolean = false,
     val ytMusicPlaylistsError: UiText? = null,
-    val biliSelectedTag: String = BiliExploreTag.RECOMMEND.key,
+    val biliSelectedTag: String = DEFAULT_BILI_EXPLORE_TAG,
     val biliVideos: List<BiliMusicHotVideo> = emptyList(),
     val biliSongs: List<SongItem> = emptyList(),
     val biliLoading: Boolean = false,

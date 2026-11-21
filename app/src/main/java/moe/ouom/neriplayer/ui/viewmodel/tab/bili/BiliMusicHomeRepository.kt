@@ -16,7 +16,7 @@ import moe.ouom.neriplayer.data.model.bilibili.video.VideoBasicInfo
 /** 榜单快照：期数与曲目必须来自同一期，避免切换榜单时串期 */
 data class BiliMusicRankSnapshot(
     val type: BiliMusicRankType,
-    val period: BiliMusicRankPeriod,
+    val period: BiliMusicRankPeriod?,
     val songs: List<BiliMusicRankSong>,
     val fetchedAtMs: Long
 )

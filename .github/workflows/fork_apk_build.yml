@@ -118,7 +118,7 @@ jobs:
         shell: bash
         run: |
           # Kotlin compile errors, failed tasks and failed tests, so they are readable without admin log access
-          grep -E '^e: |^w: .*error|FAILED$|error: |What went wrong|Execution failed|> Task .* FAILED|AssertionError|Exception:' gradle-build.log \
+          grep -E '(^|[[:space:]])e: |\.kt:[0-9]+:[0-9]+|FAILED$|error: |What went wrong|Execution failed|> Task .* FAILED|AssertionError|Exception:|Violation|disallowed' gradle-build.log \
             | grep -v 'org.gradle' | head -n 40 \
             | while IFS= read -r line; do
                 clean=$(printf '%s' "$line" | sed 's#file:///home/runner/work/NeriPlayer/NeriPlayer/##' | cut -c1-400)
@@ -132,6 +132,7 @@ jobs:
           name: fork-gradle-test-reports
           path: |
             **/build/reports/tests/**
+            gradle-build.log
 
       - name: Upload Installable Release APK (arm64-v8a)
         uses: actions/upload-artifact@v6
@@ -140,4 +141,3 @@ jobs:
           if-no-files-found: error
           path: |
             app/build/outputs/apk/release/*.apk
-# retrigger

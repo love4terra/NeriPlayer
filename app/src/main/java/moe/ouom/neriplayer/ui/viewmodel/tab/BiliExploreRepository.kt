@@ -1,12 +1,15 @@
 package moe.ouom.neriplayer.ui.viewmodel.tab
 
+import moe.ouom.neriplayer.common.coroutines.runCatchingNonCancellation
 import moe.ouom.neriplayer.data.model.SongItem
 import moe.ouom.neriplayer.data.model.bilibili.music.BiliMusicHotVideo
 import moe.ouom.neriplayer.platform.bilibili.api.client.BiliClient
 import moe.ouom.neriplayer.platform.bilibili.playback.resolver.buildBiliSongAlbum
 
+const val DEFAULT_BILI_EXPLORE_TAG = "recommend"
+
 internal enum class BiliExploreTag(val key: String, val rid: Int?) {
-    RECOMMEND("recommend", null),
+    RECOMMEND(DEFAULT_BILI_EXPLORE_TAG, null),
     ORIGINAL("original", 28),
     COVER("cover", 31),
     VOCALOID("vocaloid", 30),
@@ -37,7 +40,7 @@ internal suspend fun loadBiliExplorePage(
     return when (tag) {
         BiliExploreTag.RECOMMEND -> {
             val personalized = client.hasLoginSession()
-            val feedVideos = runCatching {
+            val feedVideos = runCatchingNonCancellation {
                 client.getMusicRegionFeedVideos(displayId = page.coerceAtLeast(1))
             }.getOrNull().orEmpty()
             val videos = if (feedVideos.isNotEmpty() || page > 1) {
@@ -59,7 +62,7 @@ internal suspend fun loadBiliExplorePage(
             val rid = tag.rid ?: 3
             val rankingVideos = client.getRegionRankingVideos(rid = rid, day = 7, original = 0)
             val combined = if (rankingVideos.size < SUBZONE_MIN_TARGET_COUNT) {
-                val originalVideos = runCatching {
+                val originalVideos = runCatchingNonCancellation {
                     client.getRegionRankingVideos(rid = rid, day = 7, original = 1)
                 }.getOrDefault(emptyList())
                 mergeUniqueBiliVideos(rankingVideos, originalVideos)
