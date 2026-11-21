@@ -251,7 +251,7 @@ private fun BiliMusicSectionHeader(
 }
 
 /**
- * 榜单类型切换（热门榜 / 原创榜）：切换后由 ViewModel 清空旧榜数据并按新类型重新加载，避免串期。
+ * 榜单类型切换（热门榜 / 综合热门）：切换后由 ViewModel 清空旧榜数据并按新类型重新加载，避免串期。
  */
 @Composable
 private fun BiliMusicRankTypeSelector(

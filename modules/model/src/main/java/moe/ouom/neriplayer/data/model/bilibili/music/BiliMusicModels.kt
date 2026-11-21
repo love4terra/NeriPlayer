@@ -9,7 +9,7 @@ enum class BiliMusicRankType(val listType: Int, val cacheKey: String) {
     /** 热门榜 */
     HOT(1, "hot"),
 
-    /** 原创榜 */
+    /** 综合热门（替代停更的原原创榜槽位，保留缓存键与枚举兼容） */
     ORIGINAL(2, "original");
 
     companion object {

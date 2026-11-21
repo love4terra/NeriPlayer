@@ -167,9 +167,9 @@ class HomeBilibiliInternationalizationTest {
 
     @Test
     fun `international switch cancels running loads and rejects their late success and failure`() = homeTest {
-        lateinit var rankResponse: Continuation<List<BiliMusicRankSong>>
+        lateinit var rankResponse: Continuation<List<BiliMusicRankPeriod>>
         lateinit var hotResponse: Continuation<List<BiliMusicHotVideo>>
-        `when`(biliClient.getPopularVideos(anyInt(), anyInt())).thenAnswer { invocation ->
+        `when`(biliClient.getCopyrightMusicRankPeriods(anyInt())).thenAnswer { invocation ->
             rankResponse = continuation(invocation.rawArguments.last())
             COROUTINE_SUSPENDED
         }
@@ -191,27 +191,27 @@ class HomeBilibiliInternationalizationTest {
         assertTrue(hotJob.isCancelled)
         assertHidden(vm)
 
-        rankResponse.resume(listOf(song))
+        rankResponse.resume(listOf(period))
         hotResponse.resumeWithException(IOException("late fixture failure"))
         runCurrent()
         assertHidden(vm)
     }
 
     @Test
-    fun `popular rank loads without copyright periods while original rank loads copyright periods`() = homeTest {
+    fun `hot rank loads copyright periods while popular rank loads without copyright periods`() = homeTest {
         val vm = createViewModel()
         vm.loadBiliMusicHome(force = true)
         runCurrent()
 
         assertEquals(BiliMusicRankType.HOT, vm.uiState.value.biliMusicRank.type)
-        assertEquals(null, vm.uiState.value.biliMusicRank.period)
+        assertEquals(period, vm.uiState.value.biliMusicRank.period)
         assertEquals(listOf(song), vm.uiState.value.biliMusicRank.songs)
 
         vm.selectBiliMusicRankType(BiliMusicRankType.ORIGINAL)
         runCurrent()
 
         assertEquals(BiliMusicRankType.ORIGINAL, vm.uiState.value.biliMusicRank.type)
-        assertEquals(period, vm.uiState.value.biliMusicRank.period)
+        assertEquals(null, vm.uiState.value.biliMusicRank.period)
         assertEquals(listOf(song), vm.uiState.value.biliMusicRank.songs)
     }
 

@@ -45,7 +45,7 @@
     <string name="home_bili_music_hot">Bilibili Music Hot</string>
     <string name="home_bili_music_view_all">View all</string>
     <string name="home_bili_music_rank_hot">Popular</string>
-    <string name="home_bili_music_rank_original">Original</string>
+    <string name="home_bili_music_rank_original">All Popular</string>
     <string name="home_bili_music_rank_period" formatted="false">Issue %1$d</string>
     <string name="home_bili_music_rank_updated">Updated %1$s</string>
     <string name="home_bili_music_play_all">Play all</string>

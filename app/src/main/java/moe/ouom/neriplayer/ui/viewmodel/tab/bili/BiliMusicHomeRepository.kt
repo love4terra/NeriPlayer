@@ -24,7 +24,7 @@ data class BiliMusicRankSnapshot(
 /**
  * 首页 B 站音乐模块的内存缓存（不落库、不新增表）。
  *
- * 缓存按榜单类型隔离：热门榜与原创榜各存一份，热门视频榜单独一份。
+ * 缓存按榜单类型隔离：热门榜与综合热门各存一份，热门视频榜单独一份。
  */
 object BiliMusicHomeRepository {
 
@@ -76,7 +76,7 @@ object BiliMusicHomeRepository {
         if (!force) {
             cachedRank(type)?.let { return it }
         }
-        val snapshot = if (type == BiliMusicRankType.HOT) {
+        val snapshot = if (type == BiliMusicRankType.ORIGINAL) {
             val songs = client.getPopularVideos()
             BiliMusicRankSnapshot(
                 type = type,
