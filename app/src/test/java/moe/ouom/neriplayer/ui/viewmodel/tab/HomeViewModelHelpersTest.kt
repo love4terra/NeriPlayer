@@ -148,12 +148,12 @@ class HomeViewModelHelpersTest {
             loading,
             HomeNeteaseSongSectionState(
                 source = NeteaseHomeSongSource.TOP_SOARING,
-                section = HomeSectionState(error = UiText.Plain("timeout"))
+                section = HomeSectionState(error = UiText.Literal("timeout"))
             )
         )
         assertFalse(failedRefresh[0].section.loading)
         assertEquals(listOf(songA), failedRefresh[0].section.items)
-        assertEquals(UiText.Plain("timeout"), failedRefresh[0].section.error)
+        assertEquals(UiText.Literal("timeout"), failedRefresh[0].section.error)
         assertEquals(listOf(songB), failedRefresh[1].section.items)
 
         val playlistInitial = listOf(
