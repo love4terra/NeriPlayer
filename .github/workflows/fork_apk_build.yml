@@ -23,7 +23,7 @@ jobs:
   build-release-apk:
     name: Build Installable Release APK (arm64-v8a)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -92,12 +92,7 @@ jobs:
       - name: Install Android NDK
         uses: ./.github/actions/android-ndk
 
-      - name: Verify boundaries, unit tests, lint and assemble Release APK (arm64-v8a)
-        env:
-          ORG_GRADLE_PROJECT_KEYSTORE_FILE: ${{ steps.signing.outputs.keystore_file }}
-          ORG_GRADLE_PROJECT_KEYSTORE_PASSWORD: ${{ steps.signing.outputs.keystore_password }}
-          ORG_GRADLE_PROJECT_KEY_ALIAS: ${{ steps.signing.outputs.key_alias }}
-          ORG_GRADLE_PROJECT_KEY_PASSWORD: ${{ steps.signing.outputs.key_password }}
+      - name: Verify boundaries, unit tests and lint
         shell: bash
         run: |
           set -o pipefail
@@ -107,18 +102,36 @@ jobs:
             :app:verifyDomainDependencies \
             testDebugUnitTest \
             :app:lintDebug \
+            --no-daemon \
+            --console=plain \
+            --max-workers=2 \
+            --stacktrace 2>&1 | tee gradle-build.log
+
+      - name: Assemble Release APK (arm64-v8a)
+        env:
+          ORG_GRADLE_PROJECT_KEYSTORE_FILE: ${{ steps.signing.outputs.keystore_file }}
+          ORG_GRADLE_PROJECT_KEYSTORE_PASSWORD: ${{ steps.signing.outputs.keystore_password }}
+          ORG_GRADLE_PROJECT_KEY_ALIAS: ${{ steps.signing.outputs.key_alias }}
+          ORG_GRADLE_PROJECT_KEY_PASSWORD: ${{ steps.signing.outputs.key_password }}
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew \
             :app:assembleRelease \
             --no-daemon \
             --console=plain \
             --max-workers=2 \
-            --warning-mode all \
-            --stacktrace 2>&1 | tee gradle-build.log
+            --stacktrace 2>&1 | tee -a gradle-build.log
 
       - name: Surface Gradle errors as annotations
-        if: failure()
+        if: ${{ !success() }}
         shell: bash
         run: |
-          # Emit compiler / test errors first (GitHub shows up to 10 annotations per step)
+          # Emit compiler / test errors or last active tasks (GitHub shows up to 10 annotations per step)
+          if [ ! -f gradle-build.log ]; then
+            echo "::error::gradle-build.log not found"
+            exit 0
+          fi
           sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' gradle-build.log > gradle-clean.log || cp gradle-build.log gradle-clean.log
           filter_errors() {
             grep -vE '^[[:space:]]*(w:|Note:|at )|org\.gradle' \
@@ -136,6 +149,8 @@ jobs:
             fi
             grep -E ' FAILED$' gradle-clean.log | grep -vE '^> Task ' || true
             grep -B 20 -m 1 '> Task .* FAILED' gradle-clean.log | grep -vE '^[[:space:]]*(w:|Note:|at )|> Task ' || true
+            grep -E '^> Task ' gradle-clean.log | tail -n 5 || true
+            tail -n 5 gradle-clean.log || true
           } | awk '!seen[$0]++' | head -n 10 \
             | while IFS= read -r line; do
                 clean=$(printf '%s' "$line" | sed 's#file:///home/runner/work/NeriPlayer/NeriPlayer/##' | cut -c1-400)
@@ -149,6 +164,8 @@ jobs:
           name: fork-gradle-test-reports
           path: |
             **/build/reports/tests/**
+            **/build/reports/lint-results-*.txt
+            **/build/reports/problems/**
             gradle-build.log
 
       - name: Upload Installable Release APK (arm64-v8a)
