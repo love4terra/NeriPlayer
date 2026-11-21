@@ -180,6 +180,10 @@ sealed class ExploreSearchResult {
 
 data class ExploreUiState(
     val loading: Boolean = false,
+    val refreshing: Boolean = false,
+    val neteaseLoadingMore: Boolean = false,
+    val neteaseHasMore: Boolean = false,
+    val neteaseLastTime: Long = 0L,
     val error: UiText? = null,
     val playlists: List<PlaylistSummary> = emptyList(),
     val selectedTag: String = "tag_all",  // String resource key
@@ -200,6 +204,7 @@ data class ExploreUiState(
     val ytMusicPlaylists: List<YouTubeMusicPlaylist> = emptyList(),
     val ytMusicPlaylistsLoading: Boolean = false,
     val ytMusicPlaylistsError: UiText? = null,
+    val biliSelectedSection: String = DEFAULT_BILI_EXPLORE_SECTION,
     val biliSelectedTag: String = DEFAULT_BILI_EXPLORE_TAG,
     val biliVideos: List<BiliMusicHotVideo> = emptyList(),
     val biliSongs: List<SongItem> = emptyList(),
@@ -208,7 +213,9 @@ data class ExploreUiState(
     val biliRefreshing: Boolean = false,
     val biliHasMore: Boolean = false,
     val biliPage: Int = 1,
+    val biliDynamicOffset: String = "",
     val biliPersonalized: Boolean = false,
+    val biliLoginRequired: Boolean = false,
     val biliError: UiText? = null
 )
 
@@ -352,6 +359,8 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     private val app: Context get() = LanguageManager.applyLanguage(baseApplication)
     private val neteaseRepo = AppContainer.neteaseCookieRepo
     private var highQualityLoadJob: Job? = null
+    private var highQualityLoadMoreJob: Job? = null
+    private var highQualityRequestVersion = 0L
     private var highQualityLoadCookies: Map<String, String>? = null
     private var searchJob: Job? = null
     private var searchMoreJob: Job? = null
@@ -698,11 +707,16 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         _uiState.value = transform(_uiState.value)
     }
 
-    fun loadHighQuality(cat: String? = null) {
+    fun loadHighQuality(cat: String? = null) = loadHighQualityInternal(cat = cat, isRefresh = false)
+
+    fun refreshHighQuality() = loadHighQualityInternal(cat = null, isRefresh = true)
+
+    private fun loadHighQualityInternal(cat: String?, isRefresh: Boolean) {
         val currentState = _uiState.value
         val realCat = cat ?: currentState.selectedTag
         val cookies = neteaseRepo.getCookiesOnce()
         if (
+            !isRefresh &&
             highQualityLoadJob?.isActive == true &&
             currentState.loading &&
             currentState.selectedTag == realCat &&
@@ -712,17 +726,26 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         }
         val previousTag = currentState.selectedTag
         val previousPlaylists = currentState.playlists
+        val previousHasMore = currentState.neteaseHasMore
+        val previousLastTime = currentState.neteaseLastTime
+        val sameTag = previousTag == realCat
+        val requestVersion = ++highQualityRequestVersion
 
         highQualityLoadJob?.cancel()
+        highQualityLoadMoreJob?.cancel()
         highQualityLoadCookies = cookies.toMap()
         _uiState.value = currentState.copy(
-            loading = true,
+            loading = !isRefresh,
+            refreshing = isRefresh,
+            neteaseLoadingMore = false,
             error = null,
-            selectedTag = realCat
+            selectedTag = realCat,
+            neteaseHasMore = if (sameTag && isRefresh) previousHasMore else false,
+            neteaseLastTime = if (sameTag && isRefresh) previousLastTime else 0L
         )
         NPLogger.d(
             TAG,
-            "loadHighQuality start: tag=$realCat, apiCategory=${TAG_TO_API_CATEGORY[realCat] ?: realCat}, previousCount=${previousPlaylists.size}"
+            "loadHighQuality start: tag=$realCat, isRefresh=$isRefresh, apiCategory=${TAG_TO_API_CATEGORY[realCat] ?: realCat}, previousCount=${previousPlaylists.size}"
         )
         highQualityLoadJob = viewModelScope.launch {
             try {
@@ -731,19 +754,30 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
                 val raw = withContext(Dispatchers.IO) {
                     neteaseClient.getHighQualityPlaylists(apiCategory, 50, 0L)
                 }
-                val mapped = parseExploreHighQualityPlaylists(raw)
-                NPLogger.d(TAG, "loadHighQuality success: tag=$realCat, count=${mapped.size}")
+                if (requestVersion != highQualityRequestVersion) return@launch
+                val page = parseExploreHighQualityPage(raw)
+                val unique = mergeUniquePlaylists(emptyList(), page.playlists)
+                NPLogger.d(
+                    TAG,
+                    "loadHighQuality success: tag=$realCat, count=${unique.size}, hasMore=${page.hasMore}, lastTime=${page.lastTime}"
+                )
 
                 _uiState.value = _uiState.value.copy(
                     loading = false,
+                    refreshing = false,
+                    neteaseLoadingMore = false,
+                    neteaseHasMore = page.hasMore,
+                    neteaseLastTime = page.lastTime,
                     error = null,
-                    playlists = mapped,
+                    playlists = unique,
                     selectedTag = realCat
                 )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                val shouldRestorePreviousContent = previousPlaylists.isNotEmpty() && realCat != previousTag
+                if (requestVersion != highQualityRequestVersion) return@launch
+                val shouldRestorePreviousContent =
+                    previousPlaylists.isNotEmpty() && (realCat != previousTag || isRefresh)
                 NPLogger.e(
                     TAG,
                     "loadHighQuality failed: tag=$realCat, restorePrevious=$shouldRestorePreviousContent",
@@ -751,12 +785,64 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
                 )
                 _uiState.value = _uiState.value.copy(
                     loading = false,
+                    refreshing = false,
+                    neteaseLoadingMore = false,
                     error = feedbackText(
                         CoreCommonR.string.error_load_playlist,
                         e.message ?: feedbackText(CoreCommonR.string.github_sync_failed_message)
                     ),
                     playlists = if (shouldRestorePreviousContent) previousPlaylists else emptyList(),
-                    selectedTag = if (shouldRestorePreviousContent) previousTag else realCat
+                    selectedTag = if (shouldRestorePreviousContent) previousTag else realCat,
+                    neteaseHasMore = if (shouldRestorePreviousContent) previousHasMore else false,
+                    neteaseLastTime = if (shouldRestorePreviousContent) previousLastTime else 0L
+                )
+            }
+        }
+    }
+
+    fun loadMoreHighQuality() {
+        val currentState = _uiState.value
+        val cursor = currentState.neteaseLastTime
+        if (
+            !currentState.neteaseHasMore ||
+            cursor <= 0L ||
+            currentState.loading ||
+            currentState.refreshing ||
+            currentState.neteaseLoadingMore ||
+            highQualityLoadMoreJob?.isActive == true
+        ) {
+            return
+        }
+        val realCat = currentState.selectedTag
+        val requestVersion = highQualityRequestVersion
+        _uiState.value = currentState.copy(neteaseLoadingMore = true)
+        highQualityLoadMoreJob = viewModelScope.launch {
+            try {
+                val apiCategory = TAG_TO_API_CATEGORY[realCat] ?: realCat
+                val raw = withContext(Dispatchers.IO) {
+                    neteaseClient.getHighQualityPlaylists(apiCategory, 50, cursor)
+                }
+                if (requestVersion != highQualityRequestVersion) return@launch
+                val page = parseExploreHighQualityPage(raw)
+                val state = _uiState.value
+                val merged = mergeUniquePlaylists(state.playlists, page.playlists)
+                val addedAny = merged.size > state.playlists.size
+                val nextCursor = page.lastTime
+                val advancedCursor = nextCursor > 0L && nextCursor != cursor
+                _uiState.value = state.copy(
+                    playlists = merged,
+                    neteaseLoadingMore = false,
+                    neteaseHasMore = page.hasMore && addedAny && advancedCursor,
+                    neteaseLastTime = if (nextCursor > 0L) nextCursor else state.neteaseLastTime
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                NPLogger.w(TAG, "loadMoreHighQuality failed: tag=$realCat, before=$cursor", e)
+                if (requestVersion != highQualityRequestVersion) return@launch
+                _uiState.value = _uiState.value.copy(
+                    neteaseLoadingMore = false,
+                    neteaseHasMore = false
                 )
             }
         }
@@ -1387,41 +1473,71 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /** 加载 Bilibili 探索页首页音乐分区 / 子分区列表 */
+    fun setBiliExploreSection(sectionKey: String) {
+        val targetSection = BiliExploreSection.fromKey(sectionKey)
+        val current = _uiState.value
+        if (current.biliSelectedSection == targetSection.key &&
+            (current.biliVideos.isNotEmpty() || current.biliLoading || current.biliLoginRequired)
+        ) {
+            return
+        }
+        loadBiliExplore(
+            tagKey = current.biliSelectedTag,
+            sectionKey = targetSection.key,
+            force = true
+        )
+    }
+
+    /** 加载 Bilibili 探索页首页动态流或音乐分区 / 子分区列表 */
     fun loadBiliExplore(
         tagKey: String = _uiState.value.biliSelectedTag,
+        sectionKey: String = _uiState.value.biliSelectedSection,
         force: Boolean = false,
         isRefresh: Boolean = false
     ) {
         ensureBiliCookieObserver()
+        val targetSection = BiliExploreSection.fromKey(sectionKey)
         val targetTag = BiliExploreTag.fromKey(tagKey)
         val current = _uiState.value
-        val sameTag = current.biliSelectedTag == targetTag.key
-        if (!force && sameTag && (current.biliVideos.isNotEmpty() || current.biliLoading)) {
+        val sameSelection = current.biliSelectedSection == targetSection.key &&
+            (targetSection == BiliExploreSection.DYNAMIC || current.biliSelectedTag == targetTag.key)
+        if (!force && sameSelection &&
+            (current.biliVideos.isNotEmpty() || current.biliLoading || current.biliLoginRequired)
+        ) {
             return
         }
         val requestVersion = ++biliExploreRequestVersion
         biliExploreJob?.cancel()
         biliExploreMoreJob?.cancel()
         _uiState.value = current.copy(
+            biliSelectedSection = targetSection.key,
             biliSelectedTag = targetTag.key,
             biliLoading = !isRefresh,
             biliRefreshing = isRefresh,
             biliLoadingMore = false,
             biliError = null,
-            biliVideos = if (sameTag && isRefresh) current.biliVideos else emptyList(),
-            biliSongs = if (sameTag && isRefresh) current.biliSongs else emptyList(),
+            biliLoginRequired = false,
+            biliVideos = if (sameSelection && isRefresh) current.biliVideos else emptyList(),
+            biliSongs = if (sameSelection && isRefresh) current.biliSongs else emptyList(),
             biliHasMore = false,
             biliPage = 1,
+            biliDynamicOffset = "",
             biliPersonalized = biliClient.hasLoginSession()
         )
         biliExploreJob = viewModelScope.launch {
             try {
                 val result = withContext(Dispatchers.IO) {
-                    loadBiliExplorePage(biliClient, targetTag, page = 1)
+                    loadBiliExplorePage(
+                        client = biliClient,
+                        tag = targetTag,
+                        page = 1,
+                        section = targetSection,
+                        offset = ""
+                    )
                 }
                 if (requestVersion != biliExploreRequestVersion) return@launch
                 _uiState.value = _uiState.value.copy(
+                    biliSelectedSection = targetSection.key,
                     biliSelectedTag = targetTag.key,
                     biliVideos = result.videos,
                     biliSongs = result.songs,
@@ -1430,18 +1546,25 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
                     biliLoadingMore = false,
                     biliHasMore = result.hasMore,
                     biliPage = 1,
+                    biliDynamicOffset = result.nextOffset,
                     biliPersonalized = result.personalized,
+                    biliLoginRequired = result.requiresLogin,
                     biliError = null
                 )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                NPLogger.e(TAG, "loadBiliExplore failed: tag=${targetTag.key}", e)
+                NPLogger.e(
+                    TAG,
+                    "loadBiliExplore failed: section=${targetSection.key}, tag=${targetTag.key}",
+                    e
+                )
                 if (requestVersion != biliExploreRequestVersion) return@launch
                 _uiState.value = _uiState.value.copy(
                     biliLoading = false,
                     biliRefreshing = false,
                     biliLoadingMore = false,
+                    biliLoginRequired = false,
                     biliError = feedbackText(
                         CoreCommonR.string.error_bilibili_search,
                         e.message ?: feedbackText(CoreCommonR.string.github_sync_failed_message)
@@ -1454,6 +1577,7 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     fun refreshBiliExplore() {
         loadBiliExplore(
             tagKey = _uiState.value.biliSelectedTag,
+            sectionKey = _uiState.value.biliSelectedSection,
             force = true,
             isRefresh = true
         )
@@ -1461,8 +1585,9 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
 
     fun loadMoreBiliExplore() {
         val current = _uiState.value
+        val section = BiliExploreSection.fromKey(current.biliSelectedSection)
         val tag = BiliExploreTag.fromKey(current.biliSelectedTag)
-        if (tag != BiliExploreTag.RECOMMEND ||
+        if (current.biliLoginRequired ||
             !current.biliHasMore ||
             current.biliLoading ||
             current.biliRefreshing ||
@@ -1471,29 +1596,61 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         ) {
             return
         }
+        if (section == BiliExploreSection.DYNAMIC && current.biliDynamicOffset.isBlank()) {
+            return
+        }
         val nextPage = current.biliPage + 1
+        val currentOffset = current.biliDynamicOffset
         val requestVersion = biliExploreRequestVersion
         _uiState.value = current.copy(biliLoadingMore = true)
         biliExploreMoreJob = viewModelScope.launch {
             try {
                 val result = withContext(Dispatchers.IO) {
-                    loadBiliExplorePage(biliClient, tag, page = nextPage)
+                    loadBiliExplorePage(
+                        client = biliClient,
+                        tag = tag,
+                        page = nextPage,
+                        section = section,
+                        offset = currentOffset
+                    )
                 }
                 if (requestVersion != biliExploreRequestVersion) return@launch
+                if (result.requiresLogin) {
+                    _uiState.value = _uiState.value.copy(
+                        biliVideos = emptyList(),
+                        biliSongs = emptyList(),
+                        biliLoadingMore = false,
+                        biliHasMore = false,
+                        biliDynamicOffset = "",
+                        biliPersonalized = false,
+                        biliLoginRequired = true
+                    )
+                    return@launch
+                }
                 val state = _uiState.value
                 val mergedVideos = mergeUniqueBiliVideos(state.biliVideos, result.videos)
+                val advancedDynamic = section != BiliExploreSection.DYNAMIC ||
+                    (result.nextOffset.isNotBlank() && result.nextOffset != currentOffset)
                 _uiState.value = state.copy(
                     biliVideos = mergedVideos,
                     biliSongs = mergedVideos.map { it.toExploreSongItem() },
                     biliLoadingMore = false,
-                    biliHasMore = result.hasMore && mergedVideos.size > state.biliVideos.size,
+                    biliHasMore = result.hasMore &&
+                        mergedVideos.size > state.biliVideos.size &&
+                        advancedDynamic,
                     biliPage = nextPage,
-                    biliPersonalized = result.personalized
+                    biliDynamicOffset = result.nextOffset,
+                    biliPersonalized = result.personalized,
+                    biliLoginRequired = false
                 )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                NPLogger.w(TAG, "loadMoreBiliExplore failed: page=$nextPage", e)
+                NPLogger.w(
+                    TAG,
+                    "loadMoreBiliExplore failed: section=${section.key}, page=$nextPage",
+                    e
+                )
                 if (requestVersion != biliExploreRequestVersion) return@launch
                 _uiState.value = _uiState.value.copy(
                     biliLoadingMore = false,
@@ -1514,6 +1671,7 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
                 .collect {
                     loadBiliExplore(
                         tagKey = _uiState.value.biliSelectedTag,
+                        sectionKey = _uiState.value.biliSelectedSection,
                         force = true
                     )
                 }
@@ -1543,26 +1701,55 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
     }
 }
 
-internal fun parseExploreHighQualityPlaylists(raw: String): List<PlaylistSummary> {
-    val result = mutableListOf<PlaylistSummary>()
+internal data class HighQualityPlaylistsPage(
+    val playlists: List<PlaylistSummary>,
+    val hasMore: Boolean = false,
+    val lastTime: Long = 0L
+)
+
+internal fun parseExploreHighQualityPage(raw: String): HighQualityPlaylistsPage {
     val root = JSONObject(raw)
     val code = root.optInt("code", -1)
     if (code != 200) {
         NPLogger.w(TAG, "parsePlaylists unexpected code=$code")
-        return emptyList()
+        return HighQualityPlaylistsPage(playlists = emptyList())
     }
-    val arr = root.optJSONArray("playlists") ?: return emptyList()
+    val arr = root.optJSONArray("playlists") ?: return HighQualityPlaylistsPage(playlists = emptyList())
+    val result = ArrayList<PlaylistSummary>(arr.length())
     for (i in 0 until arr.length()) {
         val obj = arr.optJSONObject(i) ?: continue
-        result.add(PlaylistSummary(
-            id = obj.optLong("id"),
-            name = obj.optString("name"),
-            picUrl = obj.optString("coverImgUrl").replace("http://", "https://"),
-            playCount = obj.optLong("playCount"),
-            trackCount = obj.optInt("trackCount")
-        ))
+        result.add(
+            PlaylistSummary(
+                id = obj.optLong("id"),
+                name = obj.optString("name"),
+                picUrl = obj.optString("coverImgUrl").replace("http://", "https://"),
+                playCount = obj.optLong("playCount"),
+                trackCount = obj.optInt("trackCount")
+            )
+        )
     }
-    return result
+    val more = root.optBoolean("more", false)
+    val lastTime = root.optLong("lasttime", 0L).coerceAtLeast(0L)
+    return HighQualityPlaylistsPage(
+        playlists = result,
+        hasMore = more && result.isNotEmpty() && lastTime > 0L,
+        lastTime = lastTime
+    )
+}
+
+internal fun parseExploreHighQualityPlaylists(raw: String): List<PlaylistSummary> =
+    parseExploreHighQualityPage(raw).playlists
+
+internal fun mergeUniquePlaylists(
+    existing: List<PlaylistSummary>,
+    incoming: List<PlaylistSummary>
+): List<PlaylistSummary> {
+    if (existing.isEmpty() && incoming.isEmpty()) return emptyList()
+    val seen = HashSet<Long>(existing.size + incoming.size)
+    val merged = ArrayList<PlaylistSummary>(existing.size + incoming.size)
+    existing.forEach { if (seen.add(it.id)) merged += it }
+    incoming.forEach { if (seen.add(it.id)) merged += it }
+    return merged
 }
 
 internal fun parseLinkedNeteaseArtist(

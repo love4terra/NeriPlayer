@@ -4,7 +4,12 @@
     <string name="explore_bili_desc">在哔哩哔哩中发现更多精彩视频</string>
     <string name="explore_bili_personalized_hint">首页 · 个人推荐音乐分区</string>
     <string name="explore_bili_default_hint">首页 · 音乐分区默认推荐</string>
-    <string name="explore_bili_refresh">刷新 B 站音乐推荐</string>
+    <string name="explore_bili_dynamic_hint">首页 · 关注视频动态</string>
+    <string name="explore_bili_dynamic_login_required">登录哔哩哔哩账号后可查看关注 UP 主的视频动态</string>
+    <string name="explore_bili_refresh">刷新 B 站探索内容</string>
+    <string name="explore_netease_refresh">刷新歌单列表</string>
+    <string name="bili_section_dynamic">动态</string>
+    <string name="bili_section_music">音乐</string>
     <string name="bili_tag_recommend">推荐</string>
     <string name="bili_tag_original">原创音乐</string>
     <string name="bili_tag_cover">翻唱</string>

@@ -182,6 +182,7 @@ import moe.ouom.neriplayer.ui.component.sheet.bottomSheetScrollGuard
 import moe.ouom.neriplayer.ui.feedback.NeriSnackbarHost
 import moe.ouom.neriplayer.ui.feedback.showNeriSnackbar
 import moe.ouom.neriplayer.data.model.SongItem
+import moe.ouom.neriplayer.ui.viewmodel.tab.BiliExploreSection
 import moe.ouom.neriplayer.ui.viewmodel.tab.ExploreSearchResult
 import moe.ouom.neriplayer.ui.viewmodel.tab.ExploreViewModel
 import moe.ouom.neriplayer.ui.viewmodel.tab.BiliPlaylist
@@ -566,7 +567,7 @@ fun ExploreScreen(
         if (currentSource == SearchSource.YOUTUBE_MUSIC && ui.ytMusicPlaylists.isEmpty()) {
             vm.loadYtMusicPlaylists()
         }
-        if (currentSource == SearchSource.BILIBILI && ui.biliVideos.isEmpty()) {
+        if (currentSource == SearchSource.BILIBILI && ui.biliVideos.isEmpty() && !ui.biliLoginRequired) {
             vm.loadBiliExplore()
         }
     }
@@ -1142,7 +1143,10 @@ fun ExploreScreen(
                                     selectedTag = ui.selectedTag,
                                     playlists = ui.playlists,
                                     loading = ui.loading,
-                                    error = ui.error?.asString()
+                                    error = ui.error?.asString(),
+                                    refreshing = ui.refreshing,
+                                    loadingMore = ui.neteaseLoadingMore,
+                                    hasMore = ui.neteaseHasMore
                                 ),
                                 tagKeys = tagKeys,
                                 tagLabels = tagLabels,
@@ -1152,7 +1156,9 @@ fun ExploreScreen(
                                 tagChipSelectedAlpha = tagChipSelectedAlpha,
                                 tagChipUnselectedAlpha = tagChipUnselectedAlpha,
                                 tagChipBorderAlpha = tagChipBorderAlpha,
-                                isTabletLayout = isTabletLayout
+                                isTabletLayout = isTabletLayout,
+                                onRefresh = vm::refreshHighQuality,
+                                onLoadMore = vm::loadMoreHighQuality
                             )
                         }
                         SearchSource.BILIBILI -> {
@@ -1169,6 +1175,7 @@ fun ExploreScreen(
                             )
                             BiliExploreContent(
                                 browse = BiliBrowseState(
+                                    selectedSection = ui.biliSelectedSection,
                                     selectedTag = ui.biliSelectedTag,
                                     videos = ui.biliVideos,
                                     loading = ui.biliLoading,
@@ -1176,6 +1183,7 @@ fun ExploreScreen(
                                     refreshing = ui.biliRefreshing,
                                     hasMore = ui.biliHasMore,
                                     personalized = ui.biliPersonalized,
+                                    loginRequired = ui.biliLoginRequired,
                                     error = ui.biliError?.asString()
                                 ),
                                 tags = biliTags,
@@ -1186,7 +1194,13 @@ fun ExploreScreen(
                                 tagChipSelectedAlpha = tagChipSelectedAlpha,
                                 tagChipUnselectedAlpha = tagChipUnselectedAlpha,
                                 tagChipBorderAlpha = tagChipBorderAlpha,
-                                onTagSelected = { key -> vm.loadBiliExplore(tagKey = key) },
+                                onSectionSelected = vm::setBiliExploreSection,
+                                onTagSelected = { key ->
+                                    vm.loadBiliExplore(
+                                        tagKey = key,
+                                        sectionKey = BiliExploreSection.MUSIC.key
+                                    )
+                                },
                                 onRefresh = vm::refreshBiliExplore,
                                 onLoadMore = vm::loadMoreBiliExplore,
                                 onVideoClick = { index ->

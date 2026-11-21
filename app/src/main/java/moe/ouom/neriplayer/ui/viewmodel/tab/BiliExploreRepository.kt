@@ -6,18 +6,33 @@ import moe.ouom.neriplayer.data.model.bilibili.music.BiliMusicHotVideo
 import moe.ouom.neriplayer.platform.bilibili.api.client.BiliClient
 import moe.ouom.neriplayer.platform.bilibili.playback.resolver.buildBiliSongAlbum
 
+const val DEFAULT_BILI_EXPLORE_SECTION = "music"
 const val DEFAULT_BILI_EXPLORE_TAG = "recommend"
 
-internal enum class BiliExploreTag(val key: String, val rid: Int?) {
+internal enum class BiliExploreSection(val key: String) {
+    DYNAMIC("dynamic"),
+    MUSIC(DEFAULT_BILI_EXPLORE_SECTION);
+
+    companion object {
+        fun fromKey(key: String?): BiliExploreSection =
+            entries.firstOrNull { it.key == key } ?: MUSIC
+    }
+}
+
+internal enum class BiliExploreTag(
+    val key: String,
+    val rid: Int?,
+    val fallbackTname: String = ""
+) {
     RECOMMEND(DEFAULT_BILI_EXPLORE_TAG, null),
-    ORIGINAL("original", 28),
-    COVER("cover", 31),
-    VOCALOID("vocaloid", 30),
-    PERFORM("perform", 59),
-    LIVE("live", 29),
-    MV("mv", 193),
-    GENERAL("general", 130),
-    COMMENTARY("commentary", 243);
+    ORIGINAL("original", 28, "原创音乐"),
+    COVER("cover", 31, "翻唱"),
+    VOCALOID("vocaloid", 30, "VOCALOID"),
+    PERFORM("perform", 59, "演奏"),
+    LIVE("live", 29, "音乐现场"),
+    MV("mv", 193, "MV"),
+    GENERAL("general", 130, "音乐综合"),
+    COMMENTARY("commentary", 243, "乐评盘点");
 
     companion object {
         fun fromKey(key: String?): BiliExploreTag =
@@ -29,14 +44,39 @@ internal data class BiliExploreFetchResult(
     val videos: List<BiliMusicHotVideo>,
     val songs: List<SongItem>,
     val hasMore: Boolean,
-    val personalized: Boolean
+    val personalized: Boolean,
+    val nextOffset: String = "",
+    val requiresLogin: Boolean = false
 )
 
 internal suspend fun loadBiliExplorePage(
     client: BiliClient,
     tag: BiliExploreTag,
-    page: Int
+    page: Int,
+    section: BiliExploreSection = BiliExploreSection.MUSIC,
+    offset: String = ""
 ): BiliExploreFetchResult {
+    if (section == BiliExploreSection.DYNAMIC) {
+        val dynamicPage = client.getDynamicVideoFeed(offset = offset)
+        if (dynamicPage.requiresLogin) {
+            return BiliExploreFetchResult(
+                videos = emptyList(),
+                songs = emptyList(),
+                hasMore = false,
+                personalized = false,
+                requiresLogin = true
+            )
+        }
+        val unique = mergeUniqueBiliVideos(emptyList(), dynamicPage.videos)
+        return BiliExploreFetchResult(
+            videos = unique,
+            songs = unique.map { it.toExploreSongItem() },
+            hasMore = dynamicPage.hasMore && dynamicPage.nextOffset.isNotBlank(),
+            personalized = true,
+            nextOffset = dynamicPage.nextOffset
+        )
+    }
+
     return when (tag) {
         BiliExploreTag.RECOMMEND -> {
             val personalized = client.hasLoginSession()
@@ -60,19 +100,24 @@ internal suspend fun loadBiliExplorePage(
 
         else -> {
             val rid = tag.rid ?: 3
-            val rankingVideos = client.getRegionRankingVideos(rid = rid, day = 7, original = 0)
-            val combined = if (rankingVideos.size < SUBZONE_MIN_TARGET_COUNT) {
-                val originalVideos = runCatchingNonCancellation {
-                    client.getRegionRankingVideos(rid = rid, day = 7, original = 1)
+            val safePage = page.coerceAtLeast(1)
+            val newlistPage = client.getRegionNewlistRankVideos(
+                rid = rid,
+                page = safePage,
+                fallbackTname = tag.fallbackTname
+            )
+            val rawVideos = if (safePage == 1 && newlistPage.videos.isEmpty()) {
+                runCatchingNonCancellation {
+                    client.getRegionRankingVideos(rid = rid, day = 7, original = 0)
                 }.getOrDefault(emptyList())
-                mergeUniqueBiliVideos(rankingVideos, originalVideos)
             } else {
-                mergeUniqueBiliVideos(emptyList(), rankingVideos)
+                newlistPage.videos
             }
+            val unique = mergeUniqueBiliVideos(emptyList(), rawVideos)
             BiliExploreFetchResult(
-                videos = combined,
-                songs = combined.map { it.toExploreSongItem() },
-                hasMore = false,
+                videos = unique,
+                songs = unique.map { it.toExploreSongItem() },
+                hasMore = newlistPage.videos.isNotEmpty() && newlistPage.hasMore,
                 personalized = client.hasLoginSession()
             )
         }
@@ -115,4 +160,3 @@ internal fun BiliMusicHotVideo.toExploreSongItem(): SongItem =
     )
 
 private const val MAX_RECOMMEND_PAGES = 20
-private const val SUBZONE_MIN_TARGET_COUNT = 12

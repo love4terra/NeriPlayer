@@ -55,6 +55,7 @@ import moe.ouom.neriplayer.ui.haptic.HapticIconButton
 import moe.ouom.neriplayer.ui.haptic.HapticTextButton
 import moe.ouom.neriplayer.ui.theme.NeriDesign
 import moe.ouom.neriplayer.ui.theme.neriRoundedShape
+import moe.ouom.neriplayer.ui.viewmodel.tab.BiliExploreSection
 import moe.ouom.neriplayer.ui.viewmodel.tab.BiliExploreTag
 import moe.ouom.neriplayer.ui.viewmodel.tab.biliVideoStableKey
 import moe.ouom.neriplayer.util.format.formatDurationSec
@@ -62,6 +63,7 @@ import moe.ouom.neriplayer.util.format.formatPlayCount
 import moe.ouom.neriplayer.util.media.offlineCachedImageRequest
 
 internal data class BiliBrowseState(
+    val selectedSection: String = BiliExploreSection.MUSIC.key,
     val selectedTag: String,
     val videos: List<BiliMusicHotVideo>,
     val loading: Boolean,
@@ -69,6 +71,7 @@ internal data class BiliBrowseState(
     val refreshing: Boolean,
     val hasMore: Boolean,
     val personalized: Boolean,
+    val loginRequired: Boolean = false,
     val error: String?
 )
 
@@ -89,6 +92,7 @@ internal fun BiliExploreContent(
     tagChipSelectedAlpha: Float,
     tagChipUnselectedAlpha: Float,
     tagChipBorderAlpha: Float,
+    onSectionSelected: (String) -> Unit = {},
     onTagSelected: (String) -> Unit,
     onRefresh: () -> Unit,
     onLoadMore: () -> Unit,
@@ -97,6 +101,17 @@ internal fun BiliExploreContent(
     val gridMinCellSize = if (isTabletLayout) 180.dp else 156.dp
     val gridSpacing = if (isTabletLayout) 16.dp else 12.dp
     val tagListState = rememberLazyListState()
+    val showMusicSubzones = browse.selectedSection == BiliExploreSection.MUSIC.key
+    val primarySections = listOf(
+        BiliExploreTagOption(
+            key = BiliExploreSection.DYNAMIC.key,
+            label = stringResource(AppR.string.bili_section_dynamic)
+        ),
+        BiliExploreTagOption(
+            key = BiliExploreSection.MUSIC.key,
+            label = stringResource(AppR.string.bili_section_music)
+        )
+    )
     val showTagStartFade by remember { derivedStateOf { tagListState.canScrollBackward } }
     val showTagEndFade by remember { derivedStateOf { tagListState.canScrollForward } }
     val shouldLoadMore by remember(
@@ -147,10 +162,40 @@ internal fun BiliExploreContent(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            primarySections.forEach { section ->
+                                val selected = browse.selectedSection == section.key
+                                ExploreTagChip(
+                                    label = section.label,
+                                    selected = selected,
+                                    onClick = { if (!selected) onSectionSelected(section.key) },
+                                    selectedAlpha = tagChipSelectedAlpha,
+                                    unselectedAlpha = tagChipUnselectedAlpha,
+                                    borderAlpha = tagChipBorderAlpha
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(4.dp))
+                        HapticIconButton(
+                            onClick = onRefresh,
+                            enabled = !browse.loading && !browse.refreshing
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Refresh,
+                                contentDescription = stringResource(AppR.string.explore_bili_refresh)
+                            )
+                        }
+                    }
+                    if (showMusicSubzones) {
+                        Spacer(Modifier.height(8.dp))
                         LazyRow(
                             state = tagListState,
                             modifier = Modifier
-                                .weight(1f)
+                                .fillMaxWidth()
                                 .exploreHorizontalEdgeFade(
                                     showStartFade = showTagStartFade,
                                     showEndFade = showTagEndFade
@@ -169,30 +214,30 @@ internal fun BiliExploreContent(
                                 )
                             }
                         }
-                        Spacer(Modifier.width(4.dp))
-                        HapticIconButton(
-                            onClick = onRefresh,
-                            enabled = !browse.loading && !browse.refreshing
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Refresh,
-                                contentDescription = stringResource(AppR.string.explore_bili_refresh)
+                    }
+                    when {
+                        !showMusicSubzones && !browse.loginRequired -> {
+                            Text(
+                                text = stringResource(AppR.string.explore_bili_dynamic_hint),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 6.dp, start = 2.dp)
                             )
                         }
-                    }
-                    if (browse.selectedTag == BiliExploreTag.RECOMMEND.key) {
-                        Text(
-                            text = stringResource(
-                                if (browse.personalized) {
-                                    AppR.string.explore_bili_personalized_hint
-                                } else {
-                                    AppR.string.explore_bili_default_hint
-                                }
-                            ),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 4.dp, start = 2.dp)
-                        )
+                        showMusicSubzones && browse.selectedTag == BiliExploreTag.RECOMMEND.key -> {
+                            Text(
+                                text = stringResource(
+                                    if (browse.personalized) {
+                                        AppR.string.explore_bili_personalized_hint
+                                    } else {
+                                        AppR.string.explore_bili_default_hint
+                                    }
+                                ),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 6.dp, start = 2.dp)
+                            )
+                        }
                     }
                     Box(
                         modifier = Modifier
@@ -242,6 +287,25 @@ internal fun BiliExploreContent(
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator()
+                    }
+                }
+            } else if (browse.loginRequired) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = stringResource(AppR.string.explore_bili_dynamic_login_required),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        HapticTextButton(onClick = onRefresh) {
+                            Text(text = stringResource(CoreCommonR.string.recommend_refresh))
+                        }
                     }
                 }
             } else if (browse.error != null) {

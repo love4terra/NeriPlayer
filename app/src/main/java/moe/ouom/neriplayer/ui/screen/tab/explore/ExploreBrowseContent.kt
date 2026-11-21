@@ -28,13 +28,18 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -53,6 +58,7 @@ import moe.ouom.neriplayer.common.R as CoreCommonR
 import moe.ouom.neriplayer.ui.navigation.LocalMiniPlayerHeight
 import moe.ouom.neriplayer.ui.viewmodel.tab.PlaylistSummary
 import moe.ouom.neriplayer.ui.viewmodel.tab.YouTubeMusicPlaylist
+import moe.ouom.neriplayer.ui.haptic.HapticIconButton
 import moe.ouom.neriplayer.ui.haptic.HapticTextButton
 import moe.ouom.neriplayer.ui.screen.tab.home.PlaylistCard
 import moe.ouom.neriplayer.util.media.fastScrollableImageRequest
@@ -62,7 +68,10 @@ internal data class NeteaseBrowseState(
     val selectedTag: String,
     val playlists: List<PlaylistSummary>,
     val loading: Boolean,
-    val error: String?
+    val error: String?,
+    val refreshing: Boolean = false,
+    val loadingMore: Boolean = false,
+    val hasMore: Boolean = false
 )
 
 internal data class YouTubeBrowseState(
@@ -80,7 +89,7 @@ internal fun Modifier.exploreCenteredMaxWidth(maxWidth: Dp): Modifier = this
     .fillMaxSize()
 
 @Composable
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 internal fun NeteaseDefaultContent(
     gridState: LazyGridState,
     browse: NeteaseBrowseState,
@@ -92,7 +101,9 @@ internal fun NeteaseDefaultContent(
     tagChipSelectedAlpha: Float,
     tagChipUnselectedAlpha: Float,
     tagChipBorderAlpha: Float,
-    isTabletLayout: Boolean = false
+    isTabletLayout: Boolean = false,
+    onRefresh: () -> Unit = {},
+    onLoadMore: () -> Unit = {}
 ) {
     val miniPlayerHeight = LocalMiniPlayerHeight.current
     val gridHorizontalPadding = if (isTabletLayout) 56.dp else 16.dp
@@ -105,80 +116,156 @@ internal fun NeteaseDefaultContent(
     val showTagEndFade by remember(tagListState) {
         derivedStateOf { tagListState.canScrollForward }
     }
-    LazyVerticalGrid(
-        state = gridState,
-        columns = GridCells.Adaptive(gridMinCellSize),
-        verticalArrangement = Arrangement.spacedBy(gridSpacing),
-        horizontalArrangement = Arrangement.spacedBy(gridSpacing),
-        contentPadding = PaddingValues(
-            start = gridHorizontalPadding,
-            end = gridHorizontalPadding,
-            top = 16.dp,
-            bottom = 16.dp + miniPlayerHeight
-        ),
-        modifier = Modifier.exploreCenteredMaxWidth(ExploreBrowseContentMaxWidth)
+    val shouldLoadMore by remember(
+        gridState,
+        browse.playlists.size,
+        browse.hasMore,
+        browse.loading,
+        browse.loadingMore,
+        browse.refreshing
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            Column(Modifier.fillMaxWidth()) {
-                val displayKeys = tagKeys
-                val displayLabels = tagLabels
-                LazyRow(
-                    state = tagListState,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .exploreHorizontalEdgeFade(
-                            showStartFade = showTagStartFade,
-                            showEndFade = showTagEndFade
-                        ),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    itemsIndexed(displayKeys) { index, tagKey ->
-                        val selected = (browse.selectedTag == tagKey)
-                        ExploreTagChip(
-                            label = displayLabels[index],
-                            selected = selected,
-                            onClick = { if (!selected) onTagSelected(tagKey) },
-                            selectedAlpha = tagChipSelectedAlpha,
-                            unselectedAlpha = tagChipUnselectedAlpha,
-                            borderAlpha = tagChipBorderAlpha
-                        )
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .padding(horizontal = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (browse.loading) {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    }
-                }
+        derivedStateOf {
+            if (!browse.hasMore ||
+                browse.loading ||
+                browse.loadingMore ||
+                browse.refreshing ||
+                browse.playlists.isEmpty()
+            ) {
+                false
+            } else {
+                val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: return@derivedStateOf false
+                lastVisible >= browse.playlists.size - 4
             }
         }
-        if (browse.playlists.isNotEmpty()) {
-            items(items = browse.playlists, key = { it.id }) { playlist ->
-                PlaylistCard(
-                    playlist = playlist,
-                    isFavorite = favoriteKeys.contains("netease:${playlist.id}"),
-                    onClick = { onPlay(playlist) }
-                )
-            }
-        } else if (browse.loading) {
+    }
+
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore) {
+            onLoadMore()
+        }
+    }
+
+    PullToRefreshBox(
+        isRefreshing = browse.refreshing,
+        onRefresh = onRefresh,
+        modifier = Modifier.exploreCenteredMaxWidth(ExploreBrowseContentMaxWidth)
+    ) {
+        LazyVerticalGrid(
+            state = gridState,
+            columns = GridCells.Adaptive(gridMinCellSize),
+            verticalArrangement = Arrangement.spacedBy(gridSpacing),
+            horizontalArrangement = Arrangement.spacedBy(gridSpacing),
+            contentPadding = PaddingValues(
+                start = gridHorizontalPadding,
+                end = gridHorizontalPadding,
+                top = 16.dp,
+                bottom = 16.dp + miniPlayerHeight
+            ),
+            modifier = Modifier.fillMaxSize()
+        ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 24.dp),
-                    Alignment.Center
-                ) {
-                    CircularProgressIndicator()
+                Column(Modifier.fillMaxWidth()) {
+                    val displayKeys = tagKeys
+                    val displayLabels = tagLabels
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        LazyRow(
+                            state = tagListState,
+                            modifier = Modifier
+                                .weight(1f)
+                                .exploreHorizontalEdgeFade(
+                                    showStartFade = showTagStartFade,
+                                    showEndFade = showTagEndFade
+                                ),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            itemsIndexed(displayKeys) { index, tagKey ->
+                                val selected = (browse.selectedTag == tagKey)
+                                ExploreTagChip(
+                                    label = displayLabels[index],
+                                    selected = selected,
+                                    onClick = { if (!selected) onTagSelected(tagKey) },
+                                    selectedAlpha = tagChipSelectedAlpha,
+                                    unselectedAlpha = tagChipUnselectedAlpha,
+                                    borderAlpha = tagChipBorderAlpha
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(4.dp))
+                        HapticIconButton(
+                            onClick = onRefresh,
+                            enabled = !browse.loading && !browse.refreshing
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Refresh,
+                                contentDescription = stringResource(AppR.string.explore_netease_refresh)
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (browse.loading && !browse.refreshing) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
                 }
             }
-        } else if (browse.error != null) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Text(browse.error, color = MaterialTheme.colorScheme.error)
+            if (browse.playlists.isNotEmpty()) {
+                items(items = browse.playlists, key = { it.id }) { playlist ->
+                    PlaylistCard(
+                        playlist = playlist,
+                        isFavorite = favoriteKeys.contains("netease:${playlist.id}"),
+                        onClick = { onPlay(playlist) }
+                    )
+                }
+                if (browse.loadingMore) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.5.dp
+                            )
+                        }
+                    }
+                }
+            } else if (browse.loading) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+            } else if (browse.error != null) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(browse.error, color = MaterialTheme.colorScheme.error)
+                        HapticTextButton(onClick = onRefresh) {
+                            Text(text = stringResource(CoreCommonR.string.recommend_refresh))
+                        }
+                    }
+                }
             }
         }
     }

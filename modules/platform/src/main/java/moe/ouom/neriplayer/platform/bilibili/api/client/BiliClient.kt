@@ -52,6 +52,7 @@ import moe.ouom.neriplayer.data.model.bilibili.collection.SeriesArchivePage
 import moe.ouom.neriplayer.data.model.bilibili.music.BiliMusicHotVideo
 import moe.ouom.neriplayer.data.model.bilibili.music.BiliMusicRankPeriod
 import moe.ouom.neriplayer.data.model.bilibili.music.BiliMusicRankSong
+import moe.ouom.neriplayer.data.model.bilibili.music.BiliPagedVideoList
 import moe.ouom.neriplayer.data.model.bilibili.playback.BiliAudioStreamInfo
 import moe.ouom.neriplayer.data.model.bilibili.playback.DashStream
 import moe.ouom.neriplayer.data.model.bilibili.playback.DolbyAudio
@@ -222,6 +223,7 @@ class BiliClient(
 
     private val cookieSession = BiliCookieSession(cookieRepo, http)
     private val comments = BiliCommentApi(cookieRepo, cookieSession, http)
+    private val exploreApi = BiliExploreApi(cookieRepo, cookieSession, http)
     // 字幕 CDN 直接返回文件内容, 关闭重定向避免 Cookie 被带到其他主机
     private val subtitleHttp: OkHttpClient = http.newBuilder()
         .callTimeout(SUBTITLE_CALL_TIMEOUT_MS, TimeUnit.MILLISECONDS)
@@ -1833,6 +1835,26 @@ class BiliClient(
         )
         parseRegionRankingVideos(response.requireSuccessfulArray("web-interface/ranking/region"))
     }
+
+    /** 获取音乐子分区 7 天时间窗口排行（支持 page 翻页） */
+    suspend fun getRegionNewlistRankVideos(
+        rid: Int,
+        page: Int = 1,
+        pageSize: Int = 20,
+        order: String = "click",
+        fallbackTname: String = ""
+    ): BiliPagedVideoList = exploreApi.getRegionNewlistRankVideos(
+        rid = rid,
+        page = page,
+        pageSize = pageSize,
+        order = order,
+        fallbackTname = fallbackTname
+    )
+
+    /** 获取当前已登录用户的 B 站关注视频动态流（支持 offset 游标翻页） */
+    suspend fun getDynamicVideoFeed(
+        offset: String = ""
+    ): BiliPagedVideoList = exploreApi.getDynamicVideoFeed(offset = offset)
 
     /** 上报 B 站 Web 端播放心跳，计入用户最近播放历史；未登录时静默跳过 */
     suspend fun reportPlaybackHeartbeat(

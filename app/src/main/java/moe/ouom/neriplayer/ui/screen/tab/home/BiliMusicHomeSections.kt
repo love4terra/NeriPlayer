@@ -73,6 +73,7 @@ internal fun LazyGridScope.addBiliMusicRankSection(
     onMoreClick: () -> Unit,
     onPlay: (List<BiliVideoItem>, Int) -> Unit,
     onRetry: () -> Unit,
+    onRefresh: () -> Unit = onRetry,
     offlineMode: Boolean
 ) {
     val hasContent = state.songs.isNotEmpty()
@@ -86,6 +87,9 @@ internal fun LazyGridScope.addBiliMusicRankSection(
             icon = Icons.Outlined.MusicNote,
             title = stringResource(CoreCommonR.string.home_bili_music_rank),
             onMoreClick = onMoreClick,
+            onRefreshClick = onRefresh,
+            refreshing = state.loading,
+            refreshEnabled = !offlineMode,
             typeSelector = {
                 BiliMusicRankTypeSelector(
                     selected = state.type,
@@ -138,6 +142,7 @@ internal fun LazyGridScope.addBiliMusicHotSection(
     onMoreClick: () -> Unit,
     onPlay: (List<BiliVideoItem>, Int) -> Unit,
     onRetry: () -> Unit,
+    onRefresh: () -> Unit = onRetry,
     offlineMode: Boolean
 ) {
     val hasContent = state.items.isNotEmpty()
@@ -150,7 +155,10 @@ internal fun LazyGridScope.addBiliMusicHotSection(
         BiliMusicSectionHeader(
             icon = Icons.Outlined.LibraryMusic,
             title = stringResource(CoreCommonR.string.home_bili_music_hot),
-            onMoreClick = onMoreClick
+            onMoreClick = onMoreClick,
+            onRefreshClick = onRefresh,
+            refreshing = state.loading,
+            refreshEnabled = !offlineMode
         )
     }
 
@@ -193,6 +201,9 @@ private fun BiliMusicSectionHeader(
     icon: ImageVector,
     title: String,
     onMoreClick: () -> Unit,
+    onRefreshClick: (() -> Unit)? = null,
+    refreshing: Boolean = false,
+    refreshEnabled: Boolean = true,
     typeSelector: (@Composable () -> Unit)? = null
 ) {
     Column(
@@ -216,6 +227,13 @@ private fun BiliMusicSectionHeader(
                         .weight(1f)
                         .padding(top = 8.dp, bottom = 4.dp)
                 )
+                if (onRefreshClick != null) {
+                    SectionRefreshButton(
+                        onRefresh = onRefreshClick,
+                        refreshing = refreshing,
+                        enabled = refreshEnabled
+                    )
+                }
                 TextButton(onClick = onMoreClick) {
                     Text(text = stringResource(CoreCommonR.string.home_bili_music_view_all))
                 }
@@ -241,6 +259,13 @@ private fun BiliMusicSectionHeader(
                         .padding(start = 8.dp)
                         .weight(1f)
                 )
+                if (onRefreshClick != null) {
+                    SectionRefreshButton(
+                        onRefresh = onRefreshClick,
+                        refreshing = refreshing,
+                        enabled = refreshEnabled
+                    )
+                }
                 TextButton(onClick = onMoreClick) {
                     Text(text = stringResource(CoreCommonR.string.home_bili_music_view_all))
                 }

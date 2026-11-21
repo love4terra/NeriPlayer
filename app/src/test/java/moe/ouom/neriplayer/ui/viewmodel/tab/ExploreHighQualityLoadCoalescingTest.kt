@@ -68,7 +68,10 @@ class ExploreHighQualityLoadCoalescingTest {
         replaceLazy(AppContainer::class.java, "settingsRepo", settingsRepo)
         replaceLazy(PlayerManager::class.java, "neteaseClient", client)
         `when`(client.getHighQualityPlaylists(anyString(), anyInt(), anyLong())).thenAnswer { invocation ->
-            val request = PendingRequest(invocation.getArgument(0))
+            val request = PendingRequest(
+                category = invocation.getArgument(0),
+                before = invocation.getArgument(2)
+            )
             ownedRequests += request
             startedRequests.put(request)
             request.response()
@@ -169,6 +172,34 @@ class ExploreHighQualityLoadCoalescingTest {
         verify(client, times(2)).getHighQualityPlaylists("全部", 50, 0L)
     }
 
+    @Test
+    fun `loadMoreHighQuality appends using lasttime and refreshHighQuality reloads from zero`(): Unit = runBlocking {
+        val vm = createViewModel()
+        nextRequest().complete(id = 101L, more = true, lastTime = 9001L)
+        val initial = loadedState(vm, 101L)
+        assertTrue(initial.neteaseHasMore)
+        assertEquals(9001L, initial.neteaseLastTime)
+
+        vm.loadMoreHighQuality()
+        val page2Request = nextRequest()
+        assertEquals(9001L, page2Request.before)
+        page2Request.complete(id = 202L, more = false, lastTime = 8001L)
+        val appended = withTimeout(5_000L) {
+            vm.uiState.first { !it.neteaseLoadingMore && it.playlists.map { p -> p.id } == listOf(101L, 202L) }
+        }
+        assertFalse(appended.neteaseHasMore)
+
+        vm.refreshHighQuality()
+        val refreshRequest = nextRequest()
+        assertEquals(0L, refreshRequest.before)
+        refreshRequest.complete(id = 303L, more = true, lastTime = 9500L)
+        val refreshed = withTimeout(5_000L) {
+            vm.uiState.first { !it.refreshing && it.playlists.map { p -> p.id } == listOf(303L) }
+        }
+        assertTrue(refreshed.neteaseHasMore)
+        assertEquals(9500L, refreshed.neteaseLastTime)
+    }
+
     private fun createViewModel(): ExploreViewModel = ExploreViewModel(
         ApplicationProvider.getApplicationContext()
     ).also { viewModel = it }
@@ -194,13 +225,20 @@ class ExploreHighQualityLoadCoalescingTest {
         field.set(delegate, replacement)
     }
 
-    private class PendingRequest(val category: String) {
+    private class PendingRequest(
+        val category: String,
+        val before: Long = 0L
+    ) {
         val release = CountDownLatch(1)
         private var playlistId = 0L
+        private var hasMore = false
+        private var nextLastTime = 0L
         private var failure: IOException? = null
 
-        fun complete(id: Long) {
+        fun complete(id: Long, more: Boolean = false, lastTime: Long = 0L) {
             playlistId = id
+            hasMore = more
+            nextLastTime = lastTime
             release.countDown()
         }
 
@@ -212,7 +250,7 @@ class ExploreHighQualityLoadCoalescingTest {
         fun response(): String {
             check(release.await(10L, TimeUnit.SECONDS)) { "test did not release its owned request" }
             failure?.let { throw it }
-            return """{"code":200,"playlists":[{"id":$playlistId,"name":"Fixture $playlistId"}]}"""
+            return """{"code":200,"more":$hasMore,"lasttime":$nextLastTime,"playlists":[{"id":$playlistId,"name":"Fixture $playlistId"}]}"""
         }
     }
 }

@@ -199,3 +199,11 @@ fun List<BiliMusicRankSong>.toPlayableRankVideoItems(): List<BiliVideoItem> =
 /** 按榜单顺序提取可播放条目，顺序与榜单一致（不可播放的条目被跳过） */
 fun List<BiliMusicHotVideo>.toPlayableHotVideoItems(): List<BiliVideoItem> =
     mapNotNull { it.toPlayableBiliVideoItem() }
+
+/** Bilibili 探索分页视频列表结果（用于动态流与音乐子分区分页） */
+data class BiliPagedVideoList(
+    val videos: List<BiliMusicHotVideo>,
+    val hasMore: Boolean,
+    val nextOffset: String = "",
+    val requiresLogin: Boolean = false
+)

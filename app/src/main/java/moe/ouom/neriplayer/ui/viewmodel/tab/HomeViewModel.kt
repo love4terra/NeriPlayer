@@ -97,6 +97,98 @@ internal fun shouldRequestDailyRecommendAfresh(
     afreshDailyRecommend: Boolean
 ): Boolean = source == NeteaseHomeSongSource.DAILY_RECOMMEND && afreshDailyRecommend
 
+private inline fun <T, K, S> markSingleSectionLoading(
+    sections: List<S>,
+    targetKey: K,
+    keySelector: (S) -> K,
+    sectionSelector: (S) -> HomeSectionState<T>,
+    copySection: (S, HomeSectionState<T>) -> S,
+    createSection: (K, HomeSectionState<T>) -> S
+): List<S> {
+    var updated = false
+    val mapped = sections.map { entry ->
+        if (keySelector(entry) == targetKey) {
+            updated = true
+            copySection(entry, sectionSelector(entry).copy(loading = true, error = null))
+        } else {
+            entry
+        }
+    }
+    return if (updated) mapped else mapped + createSection(targetKey, HomeSectionState(loading = true))
+}
+
+private inline fun <T, K, S> mergeSingleSectionUpdate(
+    sections: List<S>,
+    fetched: S,
+    keySelector: (S) -> K,
+    sectionSelector: (S) -> HomeSectionState<T>,
+    copySection: (S, HomeSectionState<T>) -> S
+): List<S> {
+    var found = false
+    val fetchedSection = sectionSelector(fetched)
+    val mapped = sections.map { entry ->
+        if (keySelector(entry) != keySelector(fetched)) {
+            entry
+        } else {
+            found = true
+            val existing = sectionSelector(entry)
+            val resolved = if (fetchedSection.items.isNotEmpty() || existing.items.isEmpty()) {
+                fetchedSection
+            } else {
+                existing.copy(loading = false, error = fetchedSection.error)
+            }
+            copySection(entry, resolved)
+        }
+    }
+    return if (found) mapped else mapped + fetched
+}
+
+internal fun markSongSectionLoading(
+    sections: List<HomeNeteaseSongSectionState>,
+    source: NeteaseHomeSongSource
+): List<HomeNeteaseSongSectionState> = markSingleSectionLoading(
+    sections = sections,
+    targetKey = source,
+    keySelector = HomeNeteaseSongSectionState::source,
+    sectionSelector = HomeNeteaseSongSectionState::section,
+    copySection = { entry, section -> entry.copy(section = section) },
+    createSection = { key, section -> HomeNeteaseSongSectionState(source = key, section = section) }
+)
+
+internal fun mergeSingleSongSectionResult(
+    sections: List<HomeNeteaseSongSectionState>,
+    fetched: HomeNeteaseSongSectionState
+): List<HomeNeteaseSongSectionState> = mergeSingleSectionUpdate(
+    sections = sections,
+    fetched = fetched,
+    keySelector = HomeNeteaseSongSectionState::source,
+    sectionSelector = HomeNeteaseSongSectionState::section,
+    copySection = { entry, section -> entry.copy(section = section) }
+)
+
+internal fun markPlaylistSectionLoading(
+    sections: List<HomeNeteasePlaylistSectionState>,
+    source: NeteaseHomePlaylistSource
+): List<HomeNeteasePlaylistSectionState> = markSingleSectionLoading(
+    sections = sections,
+    targetKey = source,
+    keySelector = HomeNeteasePlaylistSectionState::source,
+    sectionSelector = HomeNeteasePlaylistSectionState::section,
+    copySection = { entry, section -> entry.copy(section = section) },
+    createSection = { key, section -> HomeNeteasePlaylistSectionState(source = key, section = section) }
+)
+
+internal fun mergeSinglePlaylistSectionResult(
+    sections: List<HomeNeteasePlaylistSectionState>,
+    fetched: HomeNeteasePlaylistSectionState
+): List<HomeNeteasePlaylistSectionState> = mergeSingleSectionUpdate(
+    sections = sections,
+    fetched = fetched,
+    keySelector = HomeNeteasePlaylistSectionState::source,
+    sectionSelector = HomeNeteasePlaylistSectionState::section,
+    copySection = { entry, section -> entry.copy(section = section) }
+)
+
 internal fun shouldRefreshNeteaseHome(
     loginChanged: Boolean,
     recommendationsBootstrapped: Boolean,
@@ -254,6 +346,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private var playlistJob: Job? = null
     private var hotSongsJob: Job? = null
     private var radarSongsJob: Job? = null
+    private val singleSongSectionJobs = LinkedHashMap<NeteaseHomeSongSource, Job>()
+    private val singlePlaylistSectionJobs = LinkedHashMap<NeteaseHomePlaylistSource, Job>()
     private val homeSectionLoadCoordinator = HomeSectionLoadCoordinator()
     private var radarPlaylistsJob: Job? = null
     private var ytMusicHomeJob: Job? = null
@@ -539,8 +633,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         hotSongsJob?.cancel()
         radarSongsJob?.cancel()
         radarPlaylistsJob?.cancel()
+        cancelSingleSectionJobs()
         cancelYouTubeHomeJobs()
         cancelBiliMusicJobs()
+    }
+
+    private fun cancelSingleSectionJobs() {
+        singleSongSectionJobs.values.forEach { it.cancel() }
+        singleSongSectionJobs.clear()
+        singlePlaylistSectionJobs.values.forEach { it.cancel() }
+        singlePlaylistSectionJobs.clear()
     }
 
     private fun cancelYouTubeHomeJobs() {
@@ -748,6 +850,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
         NPLogger.d(TAG, "refreshRecommend start: sources=$sources, hasLogin=$hasRecommendLogin")
         playlistJob?.cancel()
+        singlePlaylistSectionJobs.values.forEach { it.cancel() }
+        singlePlaylistSectionJobs.clear()
         _uiState.update { state ->
             state.copy(
                 playlistSections = buildPlaylistSectionsForRefresh(state.playlistSections),
@@ -805,6 +909,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
         NPLogger.d(TAG, "refreshHotSongs start: sources=$sources")
         hotSongsJob?.cancel()
+        NeteaseHomeTrendingSongSources.forEach { source ->
+            singleSongSectionJobs.remove(source)?.cancel()
+        }
         _uiState.update { state ->
             state.copy(
                 trendingSongSections = buildSongSectionsForRefresh(
@@ -846,6 +953,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
         NPLogger.d(TAG, "refreshRadarSongs start: sources=$sources")
         radarSongsJob?.cancel()
+        NeteaseHomeRadarSongSources.forEach { source ->
+            singleSongSectionJobs.remove(source)?.cancel()
+        }
         _uiState.update { state ->
             state.copy(
                 radarSongSections = buildSongSectionsForRefresh(
@@ -875,7 +985,65 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun refreshRadarPlaylists() {
+    /** 单独刷新某一个网易云首页歌曲板块 */
+    fun refreshSongSection(
+        source: NeteaseHomeSongSource,
+        afreshDailyRecommend: Boolean = source == NeteaseHomeSongSource.DAILY_RECOMMEND
+    ) {
+        if (offlineMode) return
+        if (source.requiresLogin && !hasRecommendLogin) return
+
+        val isRadarGroup = source in NeteaseHomeRadarSongSources
+        singleSongSectionJobs.remove(source)?.cancel()
+        _uiState.update { state ->
+            val currentList = if (isRadarGroup) state.radarSongSections else state.trendingSongSections
+            val updatedList = markSongSectionLoading(currentList, source)
+            if (isRadarGroup) {
+                state.copy(radarSongSections = updatedList)
+            } else {
+                state.copy(trendingSongSections = updatedList)
+            }
+        }
+        singleSongSectionJobs[source] = viewModelScope.launch {
+            val fetched = fetchSongSection(
+                name = "refreshSongSection",
+                source = source,
+                afreshDailyRecommend = afreshDailyRecommend
+            )
+            _uiState.update { state ->
+                val currentList = if (isRadarGroup) state.radarSongSections else state.trendingSongSections
+                val updatedList = mergeSingleSongSectionResult(currentList, fetched)
+                if (isRadarGroup) {
+                    state.copy(radarSongSections = updatedList)
+                } else {
+                    state.copy(trendingSongSections = updatedList)
+                }
+            }
+        }
+    }
+
+    /** 单独刷新某一个网易云首页歌单板块 */
+    fun refreshPlaylistSection(source: NeteaseHomePlaylistSource) {
+        if (offlineMode) return
+        if (source.requiresLogin && !hasRecommendLogin) return
+
+        singlePlaylistSectionJobs.remove(source)?.cancel()
+        _uiState.update { state ->
+            state.copy(
+                playlistSections = markPlaylistSectionLoading(state.playlistSections, source)
+            )
+        }
+        singlePlaylistSectionJobs[source] = viewModelScope.launch {
+            val fetched = fetchPlaylistSection(source)
+            _uiState.update { state ->
+                state.copy(
+                    playlistSections = mergeSinglePlaylistSectionResult(state.playlistSections, fetched)
+                )
+            }
+        }
+    }
+
+    fun refreshRadarPlaylists() {
         if (offlineMode) return
 
         NPLogger.d(TAG, "refreshRadarPlaylists start")

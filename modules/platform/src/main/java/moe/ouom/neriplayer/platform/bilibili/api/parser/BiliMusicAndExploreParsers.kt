@@ -22,7 +22,9 @@ package moe.ouom.neriplayer.platform.bilibili.api.parser
 
 import moe.ouom.neriplayer.data.model.bilibili.music.BiliMusicHotVideo
 import moe.ouom.neriplayer.data.model.bilibili.music.BiliMusicRankSong
+import moe.ouom.neriplayer.data.model.bilibili.music.BiliPagedVideoList
 import moe.ouom.neriplayer.platform.bilibili.api.client.BiliVideoIdCodec
+import kotlin.math.roundToLong
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -145,6 +147,118 @@ internal fun parseRegionRankingVideos(
         )
     }
     return out
+}
+
+/** 解析 B 站子分区按时间窗口排行 (`x/web-interface/newlist_rank`) 分页响应 */
+internal fun parseRegionNewlistRankVideos(
+    data: JSONObject,
+    currentPage: Int,
+    fallbackTname: String = ""
+): BiliPagedVideoList {
+    val array = data.optJSONArray("result") ?: return BiliPagedVideoList(emptyList(), hasMore = false)
+    val videos = ArrayList<BiliMusicHotVideo>(array.length())
+    for (i in 0 until array.length()) {
+        val item = array.optJSONObject(i) ?: continue
+        val aid = item.optLong("id", item.optLong("aid", 0L))
+        val bvid = item.optString("bvid").trim().ifBlank {
+            BiliVideoIdCodec.aidToBvid(aid)
+        }
+        val title = item.optString("title").trim()
+        if (aid <= 0L || bvid.isBlank() || title.isBlank()) continue
+        val tname = item.optString("typename").trim()
+            .ifBlank { item.optString("tname").trim() }
+            .ifBlank { fallbackTname }
+        val sendDateSec = item.optLong("senddate", 0L)
+        val pubDateSec = sendDateSec.takeIf { it > 0L } ?: item.optLong("pubdate", 0L)
+        videos += BiliMusicHotVideo(
+            aid = aid,
+            bvid = bvid,
+            cid = item.optLong("cid", 0L),
+            title = title,
+            coverUrl = normalizeBiliCoverUrl(item.optString("pic")),
+            durationSec = parseFlexibleBiliDurationSec(item.opt("duration")),
+            uploader = item.optString("author").trim(),
+            uploaderMid = item.optLong("mid", 0L),
+            viewCount = parseBiliFlexibleCount(item.opt("play")),
+            danmakuCount = parseBiliFlexibleCount(item.opt("video_review") ?: item.opt("danmaku")),
+            pubdateSec = pubDateSec,
+            tname = tname
+        )
+    }
+    val numPages = data.optInt("numPages", 0)
+    val hasMore = videos.isNotEmpty() && currentPage.coerceAtLeast(1) < numPages
+    return BiliPagedVideoList(videos = videos, hasMore = hasMore)
+}
+
+/** 解析 B 站网页端关注视频动态 (`x/polymer/web-dynamic/v1/feed/all?type=video`) 响应 */
+internal fun parseDynamicVideoFeed(data: JSONObject): BiliPagedVideoList {
+    val items = data.optJSONArray("items")
+    val nextOffset = data.optString("offset").trim()
+    val apiHasMore = data.optBoolean("has_more", false)
+    if (items == null) {
+        return BiliPagedVideoList(
+            videos = emptyList(),
+            hasMore = false,
+            nextOffset = nextOffset
+        )
+    }
+    val videos = ArrayList<BiliMusicHotVideo>(items.length())
+    for (i in 0 until items.length()) {
+        val rawItem = items.optJSONObject(i) ?: continue
+        if (!rawItem.optBoolean("visible", true)) continue
+        val cardNode = if (rawItem.optString("type") == "DYNAMIC_TYPE_FORWARD") {
+            rawItem.optJSONObject("orig") ?: rawItem
+        } else {
+            rawItem
+        }
+        val modules = cardNode.optJSONObject("modules") ?: continue
+        val author = modules.optJSONObject("module_author") ?: JSONObject()
+        val major = modules.optJSONObject("module_dynamic")?.optJSONObject("major") ?: continue
+        val archive = major.optJSONObject("archive") ?: continue
+        val aid = archive.optString("aid").trim().toLongOrNull()
+            ?: archive.optLong("aid", 0L)
+        val bvid = archive.optString("bvid").trim().ifBlank {
+            BiliVideoIdCodec.aidToBvid(aid)
+        }
+        val title = archive.optString("title").trim()
+        if (aid <= 0L || bvid.isBlank() || title.isBlank()) continue
+        val stat = archive.optJSONObject("stat") ?: JSONObject()
+        val badgeText = archive.optJSONObject("badge")?.optString("text")?.trim().orEmpty()
+        videos += BiliMusicHotVideo(
+            aid = aid,
+            bvid = bvid,
+            cid = 0L,
+            title = title,
+            coverUrl = normalizeBiliCoverUrl(archive.optString("cover")),
+            durationSec = parseFlexibleBiliDurationSec(archive.opt("duration_text")),
+            uploader = author.optString("name").trim(),
+            uploaderMid = author.optLong("mid", 0L),
+            viewCount = parseBiliFlexibleCount(stat.opt("play")),
+            danmakuCount = parseBiliFlexibleCount(stat.opt("danmaku")),
+            pubdateSec = author.optLong("pub_ts", 0L),
+            tname = badgeText
+        )
+    }
+    return BiliPagedVideoList(
+        videos = videos,
+        hasMore = apiHasMore && nextOffset.isNotBlank(),
+        nextOffset = nextOffset
+    )
+}
+
+internal fun parseBiliFlexibleCount(raw: Any?): Long {
+    if (raw == null || raw == JSONObject.NULL) return 0L
+    if (raw is Number) return raw.toLong().coerceAtLeast(0L)
+    val text = raw.toString().trim().replace(",", "")
+    if (text.isEmpty() || text == "-") return 0L
+    text.toLongOrNull()?.let { return it.coerceAtLeast(0L) }
+    val multiplier = when {
+        text.endsWith("万") -> 10_000.0
+        text.endsWith("亿") -> 100_000_000.0
+        else -> return text.toDoubleOrNull()?.roundToLong()?.coerceAtLeast(0L) ?: 0L
+    }
+    val numeric = text.dropLast(1).trim().toDoubleOrNull() ?: return 0L
+    return (numeric * multiplier).roundToLong().coerceAtLeast(0L)
 }
 
 internal fun parseFlexibleBiliDurationSec(raw: Any?): Int {

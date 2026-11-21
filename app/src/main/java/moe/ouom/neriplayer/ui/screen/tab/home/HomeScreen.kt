@@ -521,6 +521,7 @@ fun HomeScreen(
                         onMoreClick = { onBiliMusicRankMore(ui.biliMusicRank.type) },
                         onPlay = onBiliMusicRankPlay,
                         onRetry = { vm.loadBiliMusicRank(force = true) },
+                        onRefresh = { vm.loadBiliMusicRank(force = true) },
                         offlineMode = offlineMode
                     )
                     addBiliMusicHotSection(
@@ -529,6 +530,7 @@ fun HomeScreen(
                         onMoreClick = onBiliMusicHotMore,
                         onPlay = onBiliMusicHotPlay,
                         onRetry = { vm.loadBiliMusicHot(force = true) },
+                        onRefresh = { vm.loadBiliMusicHot(force = true) },
                         offlineMode = offlineMode
                     )
                 }
@@ -589,7 +591,10 @@ fun HomeScreen(
                                     favoriteSongLookup = favoriteSongLookup,
                                     onFavoriteToggle = ::toggleHomeSongFavorite,
                                     onShowSnackbar = showHomeSnackbar,
-                                    offlineMode = offlineMode
+                                    offlineMode = offlineMode,
+                                    onRefresh = vm::refreshYtMusicHome,
+                                    refreshing = ui.ytMusicHomeShelves.loading,
+                                    refreshEnabled = !offlineMode
                                 )
                             }
 
@@ -604,7 +609,10 @@ fun HomeScreen(
                                     favoriteSongLookup = favoriteSongLookup,
                                     onFavoriteToggle = ::toggleHomeSongFavorite,
                                     onShowSnackbar = showHomeSnackbar,
-                                    offlineMode = offlineMode
+                                    offlineMode = offlineMode,
+                                    onRefresh = vm::refreshYtMusicHome,
+                                    refreshing = ui.ytMusicHomeShelves.loading,
+                                    refreshEnabled = !offlineMode
                                 )
                             }
 
@@ -615,7 +623,10 @@ fun HomeScreen(
                                 ) {
                                     SectionHeader(
                                         icon = Icons.Outlined.Star,
-                                        title = moreRecommendationsTitle
+                                        title = moreRecommendationsTitle,
+                                        onRefresh = vm::refreshYtMusicHome,
+                                        refreshing = ui.ytMusicPlaylists.loading,
+                                        refreshEnabled = !offlineMode
                                     )
                                 }
 
@@ -679,7 +690,10 @@ fun HomeScreen(
                                                     favoriteSongLookup = favoriteSongLookup,
                                                     onFavoriteToggle = ::toggleHomeSongFavorite,
                                                     onShowSnackbar = showHomeSnackbar,
-                                                    offlineMode = offlineMode
+                                                    offlineMode = offlineMode,
+                                                    onRefresh = vm::refreshYtMusicHome,
+                                                    refreshing = ui.ytMusicHomeShelves.loading,
+                                                    refreshEnabled = !offlineMode
                                                 )
                                             } else {
                                                 val playlistItems = shelf.items.filter { it.isPlaylistItem() }
@@ -692,7 +706,10 @@ fun HomeScreen(
                                                 ) {
                                                     SectionHeader(
                                                         icon = Icons.Outlined.Explore,
-                                                        title = shelf.title
+                                                        title = shelf.title,
+                                                        onRefresh = vm::refreshYtMusicHome,
+                                                        refreshing = ui.ytMusicHomeShelves.loading,
+                                                        refreshEnabled = !offlineMode
                                                     )
                                                 }
                                                 playlistItems.forEachIndexed { itemIndex, homeItem ->
@@ -793,7 +810,8 @@ fun HomeScreen(
                                         favoriteSongLookup = favoriteSongLookup,
                                         onFavoriteToggle = ::toggleHomeSongFavorite,
                                         onShowSnackbar = showHomeSnackbar,
-                                        offlineMode = offlineMode
+                                        offlineMode = offlineMode,
+                                        onRefresh = { vm.refreshSongSection(sectionState.source) }
                                     )
                                 }
 
@@ -806,7 +824,10 @@ fun HomeScreen(
                                 ) {
                                     SectionHeader(
                                         icon = Icons.Outlined.Explore,
-                                        title = stringResource(CoreCommonR.string.home_netease_radar_playlists)
+                                        title = stringResource(CoreCommonR.string.home_netease_radar_playlists),
+                                        onRefresh = vm::refreshRadarPlaylists,
+                                        refreshing = radarPlaylistState.loading,
+                                        refreshEnabled = !offlineMode
                                     )
                                 }
                                 sectionContent(
@@ -852,7 +873,13 @@ fun HomeScreen(
                                             favoriteSongLookup = favoriteSongLookup,
                                             onFavoriteToggle = ::toggleHomeSongFavorite,
                                             onShowSnackbar = showHomeSnackbar,
-                                            offlineMode = offlineMode
+                                            offlineMode = offlineMode,
+                                            onRefresh = {
+                                                vm.refreshSongSection(
+                                                    source = sectionState.source,
+                                                    afreshDailyRecommend = sectionState.source == NeteaseHomeSongSource.DAILY_RECOMMEND
+                                                )
+                                            }
                                         )
                                     }
                             }
@@ -878,7 +905,8 @@ fun HomeScreen(
                                         favoriteSongLookup = favoriteSongLookup,
                                         onFavoriteToggle = ::toggleHomeSongFavorite,
                                         onShowSnackbar = showHomeSnackbar,
-                                        offlineMode = offlineMode
+                                        offlineMode = offlineMode,
+                                        onRefresh = { vm.refreshSongSection(sectionState.source) }
                                     )
                                 }
                             }
@@ -897,7 +925,8 @@ fun HomeScreen(
                                                 snackbarHostState.showNeriSnackbar(message)
                                             }
                                         },
-                                        offlineMode = offlineMode
+                                        offlineMode = offlineMode,
+                                        onRefresh = { vm.refreshPlaylistSection(sectionState.source) }
                                     )
                                 }
                             }
@@ -958,7 +987,8 @@ private fun LazyGridScope.addNeteaseSongSection(
     favoriteSongLookup: FavoriteSongLookup,
     onFavoriteToggle: (SongItem, Boolean) -> Unit,
     onShowSnackbar: (String) -> Unit,
-    offlineMode: Boolean
+    offlineMode: Boolean,
+    onRefresh: (() -> Unit)? = null
 ) {
     item(
         key = registerKey("$sectionKey:header"),
@@ -966,7 +996,10 @@ private fun LazyGridScope.addNeteaseSongSection(
     ) {
         SectionHeader(
             icon = icon,
-            title = stringResource(sectionState.source.titleRes)
+            title = stringResource(sectionState.source.titleRes),
+            onRefresh = onRefresh,
+            refreshing = sectionState.section.loading,
+            refreshEnabled = !offlineMode
         )
     }
     sectionContent(
@@ -1000,7 +1033,8 @@ private fun LazyGridScope.addNeteasePlaylistSection(
     favoriteKeys: Set<String>,
     onItemClick: (PlaylistSummary) -> Unit,
     onShowSnackbar: (String) -> Unit,
-    offlineMode: Boolean
+    offlineMode: Boolean,
+    onRefresh: (() -> Unit)? = null
 ) {
     item(
         key = registerKey("$sectionKey:header"),
@@ -1008,7 +1042,10 @@ private fun LazyGridScope.addNeteasePlaylistSection(
     ) {
         SectionHeader(
             icon = Icons.Outlined.Star,
-            title = stringResource(sectionState.source.titleRes)
+            title = stringResource(sectionState.source.titleRes),
+            onRefresh = onRefresh,
+            refreshing = sectionState.section.loading,
+            refreshEnabled = !offlineMode
         )
     }
     when {
@@ -1696,7 +1733,10 @@ private fun LazyGridScope.addYouTubeMusicSongShelfSection(
     favoriteSongLookup: FavoriteSongLookup,
     onFavoriteToggle: (SongItem, Boolean) -> Unit,
     onShowSnackbar: (String) -> Unit,
-    offlineMode: Boolean
+    offlineMode: Boolean,
+    onRefresh: (() -> Unit)? = null,
+    refreshing: Boolean = false,
+    refreshEnabled: Boolean = true
 ) {
     val songs = shelf.items.mapNotNull { it.toPlayableSongItem(shelf.title) }
     if (songs.isEmpty()) {
@@ -1708,7 +1748,10 @@ private fun LazyGridScope.addYouTubeMusicSongShelfSection(
     ) {
         SectionHeader(
             icon = icon,
-            title = title
+            title = title,
+            onRefresh = onRefresh,
+            refreshing = refreshing,
+            refreshEnabled = refreshEnabled
         )
     }
     item(

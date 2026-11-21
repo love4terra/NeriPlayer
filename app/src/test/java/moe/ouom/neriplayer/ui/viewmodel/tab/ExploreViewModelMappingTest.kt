@@ -43,6 +43,22 @@ class ExploreViewModelMappingTest {
     }
 
     @Test
+    fun `high quality page parses cursor metadata and merges unique playlists`() {
+        val page1 = parseExploreHighQualityPage(
+            """{"code":200,"more":true,"lasttime":1760000111,"playlists":[{"id":10,"name":"A"}]}"""
+        )
+        val page2 = parseExploreHighQualityPage(
+            """{"code":200,"more":false,"lasttime":1760000222,"playlists":[{"id":10,"name":"Dup"},{"id":11,"name":"B"}]}"""
+        )
+        val merged = mergeUniquePlaylists(page1.playlists, page2.playlists)
+
+        assertTrue(page1.hasMore)
+        assertEquals(1760000111L, page1.lastTime)
+        assertEquals(listOf(10L, 11L), merged.map { it.id })
+        assertEquals("A", merged.first().name)
+    }
+
+    @Test
     fun `linked artist reads the nested data payload`() {
         val result = parseLinkedNeteaseArtist(
             raw = """

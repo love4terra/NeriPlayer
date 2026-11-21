@@ -6,6 +6,8 @@ import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import moe.ouom.neriplayer.common.R as CoreCommonR
+import moe.ouom.neriplayer.data.model.SongItem
+import moe.ouom.neriplayer.ui.i18n.UiText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -120,5 +122,55 @@ class HomeViewModelHelpersTest {
         assertTrue(shouldRequestDailyRecommendAfresh(NeteaseHomeSongSource.DAILY_RECOMMEND, true))
         assertFalse(shouldRequestDailyRecommendAfresh(NeteaseHomeSongSource.PERSONAL_RADAR, true))
         assertFalse(shouldRequestDailyRecommendAfresh(NeteaseHomeSongSource.PRIVATE_FM, true))
+    }
+
+    @Test
+    fun `single section refresh updates only targeted source and preserves existing items on failure`() {
+        val songA = SongItem(id = 1L, name = "A", artist = "Artist", album = "Album", albumId = 1L, durationMs = 1000L, coverUrl = null)
+        val songB = SongItem(id = 2L, name = "B", artist = "Artist", album = "Album", albumId = 2L, durationMs = 1000L, coverUrl = null)
+        val initial = listOf(
+            HomeNeteaseSongSectionState(
+                source = NeteaseHomeSongSource.TOP_SOARING,
+                section = HomeSectionState(items = listOf(songA))
+            ),
+            HomeNeteaseSongSectionState(
+                source = NeteaseHomeSongSource.TOP_HOT,
+                section = HomeSectionState(items = listOf(songB))
+            )
+        )
+
+        val loading = markSongSectionLoading(initial, NeteaseHomeSongSource.TOP_SOARING)
+        assertTrue(loading[0].section.loading)
+        assertEquals(listOf(songA), loading[0].section.items)
+        assertFalse(loading[1].section.loading)
+
+        val failedRefresh = mergeSingleSongSectionResult(
+            loading,
+            HomeNeteaseSongSectionState(
+                source = NeteaseHomeSongSource.TOP_SOARING,
+                section = HomeSectionState(error = UiText.Plain("timeout"))
+            )
+        )
+        assertFalse(failedRefresh[0].section.loading)
+        assertEquals(listOf(songA), failedRefresh[0].section.items)
+        assertEquals(UiText.Plain("timeout"), failedRefresh[0].section.error)
+        assertEquals(listOf(songB), failedRefresh[1].section.items)
+
+        val playlistInitial = listOf(
+            HomeNeteasePlaylistSectionState(
+                source = NeteaseHomePlaylistSource.PERSONALIZED,
+                section = HomeSectionState(items = listOf(PlaylistSummary(10L, "Old", "", 100L, 5)))
+            )
+        )
+        val playlistLoading = markPlaylistSectionLoading(playlistInitial, NeteaseHomePlaylistSource.PERSONALIZED)
+        val playlistSuccess = mergeSinglePlaylistSectionResult(
+            playlistLoading,
+            HomeNeteasePlaylistSectionState(
+                source = NeteaseHomePlaylistSource.PERSONALIZED,
+                section = HomeSectionState(items = listOf(PlaylistSummary(20L, "Fresh", "", 200L, 8)))
+            )
+        )
+        assertFalse(playlistSuccess.single().section.loading)
+        assertEquals(listOf(20L), playlistSuccess.single().section.items.map { it.id })
     }
 }

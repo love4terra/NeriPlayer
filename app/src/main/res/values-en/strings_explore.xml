@@ -4,7 +4,12 @@
     <string name="explore_bili_desc">Discover more exciting videos on Bilibili</string>
     <string name="explore_bili_personalized_hint">Home · Personalized Music Zone</string>
     <string name="explore_bili_default_hint">Home · Default Music Zone</string>
-    <string name="explore_bili_refresh">Refresh Bilibili music feed</string>
+    <string name="explore_bili_dynamic_hint">Home · Followed Video Feed</string>
+    <string name="explore_bili_dynamic_login_required">Sign in to Bilibili to view followed creators\' video updates</string>
+    <string name="explore_bili_refresh">Refresh Bilibili explore feed</string>
+    <string name="explore_netease_refresh">Refresh playlists</string>
+    <string name="bili_section_dynamic">Dynamic</string>
+    <string name="bili_section_music">Music</string>
     <string name="bili_tag_recommend">For You</string>
     <string name="bili_tag_original">Original</string>
     <string name="bili_tag_cover">Cover</string>
