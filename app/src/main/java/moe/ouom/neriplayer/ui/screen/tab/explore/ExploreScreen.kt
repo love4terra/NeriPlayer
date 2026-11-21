@@ -1190,8 +1190,9 @@ fun ExploreScreen(
                                 onRefresh = vm::refreshBiliExplore,
                                 onLoadMore = vm::loadMoreBiliExplore,
                                 onVideoClick = { index ->
-                                    val clicked = ui.biliSongs.getOrNull(index) ?: return@BiliExploreContent
-                                    playBiliVideo(ui.biliSongs, clicked, index)
+                                    ui.biliSongs.getOrNull(index)?.let { clicked ->
+                                        playBiliVideo(ui.biliSongs, clicked, index)
+                                    }
                                 }
                             )
                         }

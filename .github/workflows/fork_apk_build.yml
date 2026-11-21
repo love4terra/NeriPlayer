@@ -109,6 +109,7 @@ jobs:
             :app:lintDebug \
             :app:assembleRelease \
             --no-daemon \
+            --console=plain \
             --max-workers=2 \
             --warning-mode all \
             --stacktrace 2>&1 | tee gradle-build.log
@@ -117,9 +118,12 @@ jobs:
         if: failure()
         shell: bash
         run: |
-          # Kotlin compile errors, failed tasks and failed tests, so they are readable without admin log access
-          grep -E '(^|[[:space:]])e: |\.kt:[0-9]+:[0-9]+|FAILED$|error: |What went wrong|Execution failed|> Task .* FAILED|AssertionError|Exception:|Violation|disallowed' gradle-build.log \
-            | grep -v 'org.gradle' | head -n 40 \
+          # Emit compiler / test errors first (GitHub shows up to 10 annotations per step)
+          sed 's/\x1b\[[0-9;]*[a-zA-Z]//g' gradle-build.log > gradle-clean.log || cp gradle-build.log gradle-clean.log
+          (
+            grep -E '(^|[[:space:]])e: |\.kt:[0-9]+|error: |AssertionError|Violation|disallowed' gradle-clean.log | grep -v 'org\.gradle'
+            grep -B 20 -m 1 '> Task .* FAILED' gradle-clean.log | grep -vE '^(w:|Note:|> Task )'
+          ) | awk '!seen[$0]++' | head -n 10 \
             | while IFS= read -r line; do
                 clean=$(printf '%s' "$line" | sed 's#file:///home/runner/work/NeriPlayer/NeriPlayer/##' | cut -c1-400)
                 echo "::error::$clean"
