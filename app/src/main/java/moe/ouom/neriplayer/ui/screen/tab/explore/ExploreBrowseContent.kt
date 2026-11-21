@@ -42,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,6 +55,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 import moe.ouom.neriplayer.common.R as CoreCommonR
 import moe.ouom.neriplayer.ui.navigation.LocalMiniPlayerHeight
 import moe.ouom.neriplayer.ui.viewmodel.tab.PlaylistSummary
@@ -110,6 +112,7 @@ internal fun NeteaseDefaultContent(
     val gridMinCellSize = if (isTabletLayout) 170.dp else 150.dp
     val gridSpacing = if (isTabletLayout) 16.dp else 12.dp
     val tagListState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
     val showTagStartFade by remember(tagListState) {
         derivedStateOf { tagListState.canScrollBackward }
     }
@@ -134,7 +137,7 @@ internal fun NeteaseDefaultContent(
                 false
             } else {
                 val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: return@derivedStateOf false
-                lastVisible >= browse.playlists.size - 4
+                lastVisible >= (browse.playlists.size - 4).coerceAtLeast(0)
             }
         }
     }
@@ -145,78 +148,99 @@ internal fun NeteaseDefaultContent(
         }
     }
 
-    PullToRefreshBox(
-        isRefreshing = browse.refreshing,
-        onRefresh = onRefresh,
-        modifier = Modifier.exploreCenteredMaxWidth(ExploreBrowseContentMaxWidth)
-    ) {
-        LazyVerticalGrid(
-            state = gridState,
-            columns = GridCells.Adaptive(gridMinCellSize),
-            verticalArrangement = Arrangement.spacedBy(gridSpacing),
-            horizontalArrangement = Arrangement.spacedBy(gridSpacing),
-            contentPadding = PaddingValues(
-                start = gridHorizontalPadding,
-                end = gridHorizontalPadding,
-                top = 16.dp,
-                bottom = 16.dp + miniPlayerHeight
-            ),
-            modifier = Modifier.fillMaxSize()
+    Column(modifier = Modifier.exploreCenteredMaxWidth(ExploreBrowseContentMaxWidth)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = gridHorizontalPadding, end = gridHorizontalPadding, top = 12.dp)
         ) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Column(Modifier.fillMaxWidth()) {
-                    val displayKeys = tagKeys
-                    val displayLabels = tagLabels
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        LazyRow(
-                            state = tagListState,
-                            modifier = Modifier
-                                .weight(1f)
-                                .exploreHorizontalEdgeFade(
-                                    showStartFade = showTagStartFade,
-                                    showEndFade = showTagEndFade
-                                ),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            itemsIndexed(displayKeys) { index, tagKey ->
-                                val selected = (browse.selectedTag == tagKey)
-                                ExploreTagChip(
-                                    label = displayLabels[index],
-                                    selected = selected,
-                                    onClick = { if (!selected) onTagSelected(tagKey) },
-                                    selectedAlpha = tagChipSelectedAlpha,
-                                    unselectedAlpha = tagChipUnselectedAlpha,
-                                    borderAlpha = tagChipBorderAlpha
-                                )
-                            }
-                        }
-                        Spacer(Modifier.width(4.dp))
-                        HapticIconButton(
-                            onClick = onRefresh,
-                            enabled = !browse.loading && !browse.refreshing
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Refresh,
-                                contentDescription = stringResource(AppR.string.explore_netease_refresh)
-                            )
-                        }
+            val displayKeys = tagKeys
+            val displayLabels = tagLabels
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                LazyRow(
+                    state = tagListState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .exploreHorizontalEdgeFade(
+                            showStartFade = showTagStartFade,
+                            showEndFade = showTagEndFade
+                        ),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    itemsIndexed(displayKeys) { index, tagKey ->
+                        val selected = (browse.selectedTag == tagKey)
+                        ExploreTagChip(
+                            label = displayLabels[index],
+                            selected = selected,
+                            onClick = {
+                                if (!selected) {
+                                    coroutineScope.launch { gridState.scrollToItem(0) }
+                                    onTagSelected(tagKey)
+                                }
+                            },
+                            selectedAlpha = tagChipSelectedAlpha,
+                            unselectedAlpha = tagChipUnselectedAlpha,
+                            borderAlpha = tagChipBorderAlpha
+                        )
                     }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(4.dp)
-                            .padding(horizontal = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (browse.loading && !browse.refreshing) {
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                        }
+                }
+                Spacer(Modifier.width(4.dp))
+                HapticIconButton(
+                    onClick = {
+                        coroutineScope.launch { gridState.scrollToItem(0) }
+                        onRefresh()
+                    },
+                    enabled = !browse.loading && !browse.refreshing
+                ) {
+                    if (browse.refreshing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = stringResource(AppR.string.explore_netease_refresh)
+                        )
                     }
                 }
             }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .padding(horizontal = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (browse.loading && !browse.refreshing) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+            }
+        }
+
+        PullToRefreshBox(
+            isRefreshing = browse.refreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            LazyVerticalGrid(
+                state = gridState,
+                columns = GridCells.Adaptive(gridMinCellSize),
+                verticalArrangement = Arrangement.spacedBy(gridSpacing),
+                horizontalArrangement = Arrangement.spacedBy(gridSpacing),
+                contentPadding = PaddingValues(
+                    start = gridHorizontalPadding,
+                    end = gridHorizontalPadding,
+                    top = 8.dp,
+                    bottom = 16.dp + miniPlayerHeight
+                ),
+                modifier = Modifier.fillMaxSize()
+            ) {
             if (browse.playlists.isNotEmpty()) {
                 items(items = browse.playlists, key = { it.id }) { playlist ->
                     PlaylistCard(
@@ -267,6 +291,7 @@ internal fun NeteaseDefaultContent(
                     }
                 }
             }
+        }
         }
     }
 }

@@ -36,6 +36,7 @@ import moe.ouom.neriplayer.platform.bilibili.api.http.biliCookie
 import moe.ouom.neriplayer.platform.bilibili.api.http.executeBiliOrThrow
 import moe.ouom.neriplayer.platform.bilibili.api.http.toBiliCookieHeader
 import moe.ouom.neriplayer.platform.bilibili.api.parser.parseDynamicVideoFeed
+import moe.ouom.neriplayer.platform.bilibili.api.parser.parseRegionDynamicChildVideos
 import moe.ouom.neriplayer.platform.bilibili.api.parser.parseRegionNewlistRankVideos
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -132,6 +133,39 @@ internal class BiliExploreApi(
         parseDynamicVideoFeed(data)
     }
 
+    /** 获取音乐子分区实时动态流，支持基于 cbottom 游标的继续加载 */
+    suspend fun getRegionDynamicChildVideos(
+        rid: Int,
+        cursor: String = "",
+        fallbackTname: String = ""
+    ): BiliPagedVideoList = withContext(Dispatchers.IO) {
+        val trimmedCursor = cursor.trim()
+        val urlBuilder = if (trimmedCursor.isEmpty()) {
+            APP_REGION_DYNAMIC_CHILD_URL.toHttpUrl().newBuilder()
+                .addQueryParameter("rid", rid.toString())
+                .addQueryParameter("build", APP_BUILD_VERSION)
+        } else {
+            APP_REGION_DYNAMIC_CHILD_LIST_URL.toHttpUrl().newBuilder()
+                .addQueryParameter("rid", rid.toString())
+                .addQueryParameter("pull", "false")
+                .addQueryParameter("ctime", trimmedCursor)
+                .addQueryParameter("build", APP_BUILD_VERSION)
+        }
+        val request = Request.Builder()
+            .url(urlBuilder.build())
+            .header("User-Agent", BILI_WEB_USER_AGENT)
+            .get()
+            .build()
+        val body = http.newCall(request).executeBiliOrThrow().use { it.body.string() }
+        val response = JSONObject(body)
+        val code = response.optInt("code", -1)
+        if (code != 0) {
+            throw IOException("Bilibili region dynamic child failed: code=$code msg=${response.optString("message")}")
+        }
+        val data = response.optJSONObject("data") ?: JSONObject()
+        parseRegionDynamicChildVideos(data, fallbackTname = fallbackTname)
+    }
+
     private fun buildRecentDateWindow(nowMillis: Long): Pair<String, String> {
         val tz = TimeZone.getTimeZone("Asia/Shanghai")
         val formatter = SimpleDateFormat("yyyyMMdd", Locale.US).apply {
@@ -149,6 +183,9 @@ internal class BiliExploreApi(
     private companion object {
         const val NEWLIST_RANK_URL = "https://api.bilibili.com/x/web-interface/newlist_rank"
         const val WEB_DYNAMIC_FEED_URL = "https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all"
+        const val APP_REGION_DYNAMIC_CHILD_URL = "https://app.bilibili.com/x/v2/region/dynamic/child"
+        const val APP_REGION_DYNAMIC_CHILD_LIST_URL = "https://app.bilibili.com/x/v2/region/dynamic/child/list"
+        const val APP_BUILD_VERSION = "7000000"
         const val DYNAMIC_ORIGIN = "https://t.bilibili.com"
         const val DYNAMIC_REFERER = "https://t.bilibili.com/"
         const val DEFAULT_NEWLIST_PAGE_SIZE = 20

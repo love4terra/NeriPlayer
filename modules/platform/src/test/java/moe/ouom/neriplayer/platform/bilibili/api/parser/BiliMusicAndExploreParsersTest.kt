@@ -297,4 +297,58 @@ class BiliMusicAndExploreParsersTest {
         assertEquals(230_000_000L, parseBiliFlexibleCount("2.3亿"))
         assertEquals(999L, parseBiliFlexibleCount(999L))
     }
+
+    @Test
+    fun `parseRegionDynamicChildVideos maps av items extracts cbottom and skips non-av cards`() {
+        val data = JSONObject(
+            """
+            {
+              "cbottom": 117652106250691,
+              "new": [
+                {
+                  "param": "101",
+                  "goto": "av",
+                  "title": "原创 &quot;新曲&quot;",
+                  "cover": "http://i0.hdslb.com/bfs/archive/sub1.jpg",
+                  "duration": 185,
+                  "name": "作者A",
+                  "mid": 77,
+                  "play": "1.5万",
+                  "danmaku": 42,
+                  "pubdate": 1795223700,
+                  "rname": "原创音乐"
+                },
+                {
+                  "param": "202",
+                  "goto": "live",
+                  "title": "非视频卡片"
+                },
+                {
+                  "param": "303",
+                  "goto": "av",
+                  "title": "纯曲 &amp; Remix",
+                  "cover": "//i1.hdslb.com/bfs/archive/sub2.jpg",
+                  "duration": "3:20",
+                  "name": "作者B"
+                }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        val page = parseRegionDynamicChildVideos(data, fallbackTname = "音乐")
+
+        assertTrue(page.hasMore)
+        assertEquals("117652106250691", page.nextOffset)
+        assertEquals(2, page.videos.size)
+        assertEquals(101L, page.videos[0].aid)
+        assertEquals("原创 \"新曲\"", page.videos[0].title)
+        assertEquals("https://i0.hdslb.com/bfs/archive/sub1.jpg", page.videos[0].coverUrl)
+        assertEquals(15_000L, page.videos[0].viewCount)
+        assertEquals("原创音乐", page.videos[0].tname)
+        assertEquals(303L, page.videos[1].aid)
+        assertEquals("纯曲 & Remix", page.videos[1].title)
+        assertEquals(200, page.videos[1].durationSec)
+        assertEquals("音乐", page.videos[1].tname)
+    }
 }

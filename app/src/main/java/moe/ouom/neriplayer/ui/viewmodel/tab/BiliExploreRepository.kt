@@ -100,26 +100,69 @@ internal suspend fun loadBiliExplorePage(
 
         else -> {
             val rid = tag.rid ?: 3
-            val safePage = page.coerceAtLeast(1)
-            val newlistPage = client.getRegionNewlistRankVideos(
-                rid = rid,
-                page = safePage,
-                fallbackTname = tag.fallbackTname
-            )
-            val rawVideos = if (safePage == 1 && newlistPage.videos.isEmpty()) {
-                runCatchingNonCancellation {
-                    client.getRegionRankingVideos(rid = rid, day = 7, original = 0)
-                }.getOrDefault(emptyList())
+            val trimmedOffset = offset.trim()
+            val personalized = client.hasLoginSession()
+            if (trimmedOffset.isEmpty()) {
+                val firstPage = client.getRegionDynamicChildVideos(
+                    rid = rid,
+                    cursor = "",
+                    fallbackTname = tag.fallbackTname
+                )
+                if (firstPage.videos.isEmpty()) {
+                    val fallback = runCatchingNonCancellation {
+                        client.getRegionRankingVideos(rid = rid, day = 7, original = 0)
+                    }.getOrDefault(emptyList())
+                    val uniqueFallback = mergeUniqueBiliVideos(emptyList(), fallback)
+                    return BiliExploreFetchResult(
+                        videos = uniqueFallback,
+                        songs = uniqueFallback.map { it.toExploreSongItem() },
+                        hasMore = false,
+                        personalized = personalized
+                    )
+                }
+                val secondPage = if (
+                    firstPage.videos.size < SUBZONE_INITIAL_TARGET_COUNT &&
+                    firstPage.hasMore &&
+                    firstPage.nextOffset.isNotBlank()
+                ) {
+                    runCatchingNonCancellation {
+                        client.getRegionDynamicChildVideos(
+                            rid = rid,
+                            cursor = firstPage.nextOffset,
+                            fallbackTname = tag.fallbackTname
+                        )
+                    }.getOrNull()?.takeIf { it.videos.isNotEmpty() }
+                } else {
+                    null
+                }
+                val merged = mergeUniqueBiliVideos(
+                    firstPage.videos,
+                    secondPage?.videos.orEmpty()
+                )
+                val finalHasMore = secondPage?.hasMore ?: firstPage.hasMore
+                val finalCursor = secondPage?.nextOffset ?: firstPage.nextOffset
+                BiliExploreFetchResult(
+                    videos = merged,
+                    songs = merged.map { it.toExploreSongItem() },
+                    hasMore = merged.isNotEmpty() && finalHasMore && finalCursor.isNotBlank(),
+                    personalized = personalized,
+                    nextOffset = finalCursor
+                )
             } else {
-                newlistPage.videos
+                val nextPage = client.getRegionDynamicChildVideos(
+                    rid = rid,
+                    cursor = trimmedOffset,
+                    fallbackTname = tag.fallbackTname
+                )
+                val unique = mergeUniqueBiliVideos(emptyList(), nextPage.videos)
+                BiliExploreFetchResult(
+                    videos = unique,
+                    songs = unique.map { it.toExploreSongItem() },
+                    hasMore = unique.isNotEmpty() && nextPage.hasMore && nextPage.nextOffset.isNotBlank(),
+                    personalized = personalized,
+                    nextOffset = nextPage.nextOffset
+                )
             }
-            val unique = mergeUniqueBiliVideos(emptyList(), rawVideos)
-            BiliExploreFetchResult(
-                videos = unique,
-                songs = unique.map { it.toExploreSongItem() },
-                hasMore = newlistPage.videos.isNotEmpty() && newlistPage.hasMore,
-                personalized = client.hasLoginSession()
-            )
         }
     }
 }
@@ -160,3 +203,4 @@ internal fun BiliMusicHotVideo.toExploreSongItem(): SongItem =
     )
 
 private const val MAX_RECOMMEND_PAGES = 20
+private const val SUBZONE_INITIAL_TARGET_COUNT = 16

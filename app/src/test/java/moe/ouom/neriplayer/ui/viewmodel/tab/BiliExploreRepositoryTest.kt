@@ -9,7 +9,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.Mockito.mock
-import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 
 class BiliExploreRepositoryTest {
@@ -56,52 +55,80 @@ class BiliExploreRepositoryTest {
     }
 
     @Test
-    fun `loadBiliExplorePage uses newlist rank with pagination for music subzones and falls back on empty first page`() = runTest {
+    fun `loadBiliExplorePage uses dynamic child feed for music subzones with cursor pagination and falls back when empty`() = runTest {
         val client = mock(BiliClient::class.java)
         `when`(client.hasLoginSession()).thenReturn(false)
         `when`(
-            client.getRegionNewlistRankVideos(
+            client.getRegionDynamicChildVideos(
                 rid = 28,
-                page = 2,
-                pageSize = 20,
-                order = "click",
+                cursor = "",
                 fallbackTname = "原创音乐"
             )
         ).thenReturn(
             BiliPagedVideoList(
-                videos = listOf(sampleVideo(1L, "BV1a"), sampleVideo(1L, "BV1a"), sampleVideo(2L, "BV1b")),
-                hasMore = true
+                videos = listOf(sampleVideo(1L, "BV1a"), sampleVideo(2L, "BV1b")),
+                hasMore = true,
+                nextOffset = "cbottom_1"
+            )
+        )
+        `when`(
+            client.getRegionDynamicChildVideos(
+                rid = 28,
+                cursor = "cbottom_1",
+                fallbackTname = "原创音乐"
+            )
+        ).thenReturn(
+            BiliPagedVideoList(
+                videos = listOf(sampleVideo(2L, "BV1b"), sampleVideo(3L, "BV1c")),
+                hasMore = true,
+                nextOffset = "cbottom_2"
+            )
+        )
+        `when`(
+            client.getRegionDynamicChildVideos(
+                rid = 28,
+                cursor = "cbottom_2",
+                fallbackTname = "原创音乐"
+            )
+        ).thenReturn(
+            BiliPagedVideoList(
+                videos = listOf(sampleVideo(4L, "BV1d")),
+                hasMore = false,
+                nextOffset = ""
             )
         )
 
-        val page2Result = loadBiliExplorePage(
+        val initialResult = loadBiliExplorePage(
+            client = client,
+            tag = BiliExploreTag.ORIGINAL,
+            page = 1,
+            section = BiliExploreSection.MUSIC,
+            offset = ""
+        )
+
+        assertEquals(listOf("BV1a", "BV1b", "BV1c"), initialResult.videos.map { it.bvid })
+        assertTrue(initialResult.hasMore)
+        assertEquals("cbottom_2", initialResult.nextOffset)
+
+        val nextResult = loadBiliExplorePage(
             client = client,
             tag = BiliExploreTag.ORIGINAL,
             page = 2,
-            section = BiliExploreSection.MUSIC
+            section = BiliExploreSection.MUSIC,
+            offset = "cbottom_2"
         )
-
-        assertEquals(listOf("BV1a", "BV1b"), page2Result.videos.map { it.bvid })
-        assertTrue(page2Result.hasMore)
-        verify(client).getRegionNewlistRankVideos(
-            rid = 28,
-            page = 2,
-            pageSize = 20,
-            order = "click",
-            fallbackTname = "原创音乐"
-        )
+        assertEquals(listOf("BV1d"), nextResult.videos.map { it.bvid })
+        assertFalse(nextResult.hasMore)
 
         `when`(
-            client.getRegionNewlistRankVideos(
+            client.getRegionDynamicChildVideos(
                 rid = 28,
-                page = 1,
-                pageSize = 20,
-                order = "click",
+                cursor = "",
                 fallbackTname = "原创音乐"
             )
         ).thenReturn(BiliPagedVideoList(videos = emptyList(), hasMore = false))
         `when`(client.getRegionRankingVideos(rid = 28, day = 7, original = 0)).thenReturn(
-            listOf(sampleVideo(3L, "BV1c"))
+            listOf(sampleVideo(5L, "BV1e"))
         )
 
         val fallbackResult = loadBiliExplorePage(
@@ -110,7 +137,7 @@ class BiliExploreRepositoryTest {
             page = 1,
             section = BiliExploreSection.MUSIC
         )
-        assertEquals(listOf("BV1c"), fallbackResult.videos.map { it.bvid })
+        assertEquals(listOf("BV1e"), fallbackResult.videos.map { it.bvid })
         assertFalse(fallbackResult.hasMore)
     }
 

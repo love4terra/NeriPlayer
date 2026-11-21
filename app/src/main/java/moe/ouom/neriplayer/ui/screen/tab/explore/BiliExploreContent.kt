@@ -37,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
 import moe.ouom.neriplayer.R as AppR
 import moe.ouom.neriplayer.common.R as CoreCommonR
 import moe.ouom.neriplayer.data.model.bilibili.music.BiliMusicHotVideo
@@ -101,6 +103,7 @@ internal fun BiliExploreContent(
     val gridMinCellSize = if (isTabletLayout) 180.dp else 156.dp
     val gridSpacing = if (isTabletLayout) 16.dp else 12.dp
     val tagListState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
     val showMusicSubzones = browse.selectedSection == BiliExploreSection.MUSIC.key
     val primarySections = listOf(
         BiliExploreTagOption(
@@ -127,7 +130,7 @@ internal fun BiliExploreContent(
                 false
             } else {
                 val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: return@derivedStateOf false
-                lastVisible >= browse.videos.size - 4
+                lastVisible >= (browse.videos.size - 4).coerceAtLeast(0)
             }
         }
     }
@@ -138,120 +141,146 @@ internal fun BiliExploreContent(
         }
     }
 
-    PullToRefreshBox(
-        isRefreshing = browse.refreshing,
-        onRefresh = onRefresh,
-        modifier = Modifier.fillMaxSize()
-    ) {
-        LazyVerticalGrid(
-            state = gridState,
-            columns = GridCells.Adaptive(gridMinCellSize),
-            verticalArrangement = Arrangement.spacedBy(gridSpacing),
-            horizontalArrangement = Arrangement.spacedBy(gridSpacing),
-            contentPadding = PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
-                top = 8.dp,
-                bottom = 16.dp + miniPlayerHeight
-            ),
-            modifier = Modifier.fillMaxSize()
+    Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp)
         ) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Column(Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            primarySections.forEach { section ->
-                                val selected = browse.selectedSection == section.key
-                                ExploreTagChip(
-                                    label = section.label,
-                                    selected = selected,
-                                    onClick = { if (!selected) onSectionSelected(section.key) },
-                                    selectedAlpha = tagChipSelectedAlpha,
-                                    unselectedAlpha = tagChipUnselectedAlpha,
-                                    borderAlpha = tagChipBorderAlpha
-                                )
-                            }
-                        }
-                        Spacer(Modifier.width(4.dp))
-                        HapticIconButton(
-                            onClick = onRefresh,
-                            enabled = !browse.loading && !browse.refreshing
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Refresh,
-                                contentDescription = stringResource(AppR.string.explore_bili_refresh)
-                            )
-                        }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    primarySections.forEach { section ->
+                        val selected = browse.selectedSection == section.key
+                        ExploreTagChip(
+                            label = section.label,
+                            selected = selected,
+                            onClick = {
+                                if (!selected) {
+                                    coroutineScope.launch { gridState.scrollToItem(0) }
+                                    onSectionSelected(section.key)
+                                }
+                            },
+                            selectedAlpha = tagChipSelectedAlpha,
+                            unselectedAlpha = tagChipUnselectedAlpha,
+                            borderAlpha = tagChipBorderAlpha
+                        )
                     }
-                    if (showMusicSubzones) {
-                        Spacer(Modifier.height(8.dp))
-                        LazyRow(
-                            state = tagListState,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .exploreHorizontalEdgeFade(
-                                    showStartFade = showTagStartFade,
-                                    showEndFade = showTagEndFade
-                                ),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            itemsIndexed(tags) { _, tag ->
-                                val selected = browse.selectedTag == tag.key
-                                ExploreTagChip(
-                                    label = tag.label,
-                                    selected = selected,
-                                    onClick = { if (!selected) onTagSelected(tag.key) },
-                                    selectedAlpha = tagChipSelectedAlpha,
-                                    unselectedAlpha = tagChipUnselectedAlpha,
-                                    borderAlpha = tagChipBorderAlpha
-                                )
-                            }
-                        }
-                    }
-                    when {
-                        !showMusicSubzones && !browse.loginRequired -> {
-                            Text(
-                                text = stringResource(AppR.string.explore_bili_dynamic_hint),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 6.dp, start = 2.dp)
-                            )
-                        }
-                        showMusicSubzones && browse.selectedTag == BiliExploreTag.RECOMMEND.key -> {
-                            Text(
-                                text = stringResource(
-                                    if (browse.personalized) {
-                                        AppR.string.explore_bili_personalized_hint
-                                    } else {
-                                        AppR.string.explore_bili_default_hint
-                                    }
-                                ),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 6.dp, start = 2.dp)
-                            )
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(4.dp)
-                            .padding(horizontal = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (browse.loading && !browse.refreshing) {
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                        }
+                }
+                Spacer(Modifier.width(4.dp))
+                HapticIconButton(
+                    onClick = {
+                        coroutineScope.launch { gridState.scrollToItem(0) }
+                        onRefresh()
+                    },
+                    enabled = !browse.loading && !browse.refreshing
+                ) {
+                    if (browse.refreshing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = stringResource(AppR.string.explore_bili_refresh)
+                        )
                     }
                 }
             }
+            if (showMusicSubzones) {
+                Spacer(Modifier.height(8.dp))
+                LazyRow(
+                    state = tagListState,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .exploreHorizontalEdgeFade(
+                            showStartFade = showTagStartFade,
+                            showEndFade = showTagEndFade
+                        ),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    itemsIndexed(tags) { _, tag ->
+                        val selected = browse.selectedTag == tag.key
+                        ExploreTagChip(
+                            label = tag.label,
+                            selected = selected,
+                            onClick = {
+                                if (!selected) {
+                                    coroutineScope.launch { gridState.scrollToItem(0) }
+                                    onTagSelected(tag.key)
+                                }
+                            },
+                            selectedAlpha = tagChipSelectedAlpha,
+                            unselectedAlpha = tagChipUnselectedAlpha,
+                            borderAlpha = tagChipBorderAlpha
+                        )
+                    }
+                }
+            }
+            when {
+                !showMusicSubzones && !browse.loginRequired -> {
+                    Text(
+                        text = stringResource(AppR.string.explore_bili_dynamic_hint),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 6.dp, start = 2.dp)
+                    )
+                }
+                showMusicSubzones && browse.selectedTag == BiliExploreTag.RECOMMEND.key -> {
+                    Text(
+                        text = stringResource(
+                            if (browse.personalized) {
+                                AppR.string.explore_bili_personalized_hint
+                            } else {
+                                AppR.string.explore_bili_default_hint
+                            }
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 6.dp, start = 2.dp)
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .padding(horizontal = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (browse.loading && !browse.refreshing) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+            }
+        }
+
+        PullToRefreshBox(
+            isRefreshing = browse.refreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            LazyVerticalGrid(
+                state = gridState,
+                columns = GridCells.Adaptive(gridMinCellSize),
+                verticalArrangement = Arrangement.spacedBy(gridSpacing),
+                horizontalArrangement = Arrangement.spacedBy(gridSpacing),
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 8.dp,
+                    bottom = 16.dp + miniPlayerHeight
+                ),
+                modifier = Modifier.fillMaxSize()
+            ) {
 
             if (browse.videos.isNotEmpty()) {
                 itemsIndexed(
@@ -347,6 +376,7 @@ internal fun BiliExploreContent(
                     }
                 }
             }
+        }
         }
     }
 }

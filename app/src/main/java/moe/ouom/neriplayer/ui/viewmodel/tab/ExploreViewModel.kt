@@ -1587,6 +1587,7 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         val current = _uiState.value
         val section = BiliExploreSection.fromKey(current.biliSelectedSection)
         val tag = BiliExploreTag.fromKey(current.biliSelectedTag)
+        val usesCursor = section == BiliExploreSection.DYNAMIC || tag != BiliExploreTag.RECOMMEND
         if (current.biliLoginRequired ||
             !current.biliHasMore ||
             current.biliLoading ||
@@ -1596,7 +1597,7 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         ) {
             return
         }
-        if (section == BiliExploreSection.DYNAMIC && current.biliDynamicOffset.isBlank()) {
+        if (usesCursor && current.biliDynamicOffset.isBlank()) {
             return
         }
         val nextPage = current.biliPage + 1
@@ -1629,7 +1630,7 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
                 }
                 val state = _uiState.value
                 val mergedVideos = mergeUniqueBiliVideos(state.biliVideos, result.videos)
-                val advancedDynamic = section != BiliExploreSection.DYNAMIC ||
+                val advancedCursor = !usesCursor ||
                     (result.nextOffset.isNotBlank() && result.nextOffset != currentOffset)
                 _uiState.value = state.copy(
                     biliVideos = mergedVideos,
@@ -1637,7 +1638,7 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
                     biliLoadingMore = false,
                     biliHasMore = result.hasMore &&
                         mergedVideos.size > state.biliVideos.size &&
-                        advancedDynamic,
+                        advancedCursor,
                     biliPage = nextPage,
                     biliDynamicOffset = result.nextOffset,
                     biliPersonalized = result.personalized,

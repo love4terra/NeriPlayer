@@ -163,7 +163,7 @@ internal fun parseRegionNewlistRankVideos(
         val bvid = item.optString("bvid").trim().ifBlank {
             BiliVideoIdCodec.aidToBvid(aid)
         }
-        val title = item.optString("title").trim()
+        val title = decodeBiliHtmlEntities(item.optString("title").trim())
         if (aid <= 0L || bvid.isBlank() || title.isBlank()) continue
         val tname = item.optString("typename").trim()
             .ifBlank { item.optString("tname").trim() }
@@ -244,6 +244,72 @@ internal fun parseDynamicVideoFeed(data: JSONObject): BiliPagedVideoList {
         hasMore = apiHasMore && nextOffset.isNotBlank(),
         nextOffset = nextOffset
     )
+}
+
+/** 解析 B 站移动端音乐子分区实时动态流 (`app.bilibili.com/x/v2/region/dynamic/child`) 响应 */
+internal fun parseRegionDynamicChildVideos(
+    data: JSONObject,
+    fallbackTname: String = ""
+): BiliPagedVideoList {
+    val array = data.optJSONArray("new")
+    val cbottomLong = data.optLong("cbottom", 0L)
+    val nextCursor = if (cbottomLong > 0L) {
+        cbottomLong.toString()
+    } else {
+        data.optString("cbottom").trim().takeIf { it.isNotEmpty() && it != "0" }.orEmpty()
+    }
+    if (array == null) {
+        return BiliPagedVideoList(videos = emptyList(), hasMore = false)
+    }
+    val videos = ArrayList<BiliMusicHotVideo>(array.length())
+    for (i in 0 until array.length()) {
+        val item = array.optJSONObject(i) ?: continue
+        val goTo = item.optString("goto").trim()
+        if (goTo.isNotBlank() && !goTo.equals("av", ignoreCase = true)) continue
+        val aid = item.optString("param").trim().toLongOrNull()
+            ?: item.optLong("aid", 0L)
+        val bvid = item.optString("bvid").trim().ifBlank {
+            BiliVideoIdCodec.aidToBvid(aid)
+        }
+        val title = decodeBiliHtmlEntities(item.optString("title").trim())
+        if (aid <= 0L || bvid.isBlank() || title.isBlank()) continue
+        val cover = normalizeBiliCoverUrl(
+            item.optString("cover").ifBlank { item.optString("pic") }
+        )
+        val tname = item.optString("rname").trim()
+            .ifBlank { item.optString("tname").trim() }
+            .ifBlank { fallbackTname }
+        videos += BiliMusicHotVideo(
+            aid = aid,
+            bvid = bvid,
+            cid = item.optLong("cid", 0L),
+            title = title,
+            coverUrl = cover,
+            durationSec = parseFlexibleBiliDurationSec(item.opt("duration")),
+            uploader = item.optString("name").trim(),
+            uploaderMid = item.optLong("mid", 0L),
+            viewCount = parseBiliFlexibleCount(item.opt("play")),
+            danmakuCount = parseBiliFlexibleCount(item.opt("danmaku")),
+            pubdateSec = item.optLong("pubdate", 0L),
+            tname = tname
+        )
+    }
+    return BiliPagedVideoList(
+        videos = videos,
+        hasMore = videos.isNotEmpty() && nextCursor.isNotBlank(),
+        nextOffset = nextCursor
+    )
+}
+
+private fun decodeBiliHtmlEntities(text: String): String {
+    if (!text.contains('&')) return text
+    return text
+        .replace("&quot;", "\"")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&#39;", "'")
+        .replace("&apos;", "'")
 }
 
 internal fun parseBiliFlexibleCount(raw: Any?): Long {

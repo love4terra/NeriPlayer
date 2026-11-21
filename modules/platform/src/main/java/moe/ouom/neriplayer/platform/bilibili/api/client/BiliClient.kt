@@ -1856,6 +1856,17 @@ class BiliClient(
         offset: String = ""
     ): BiliPagedVideoList = exploreApi.getDynamicVideoFeed(offset = offset)
 
+    /** 获取音乐子分区实时动态流（cursor 为空取首页动态，非空按 cbottom 向后翻页） */
+    suspend fun getRegionDynamicChildVideos(
+        rid: Int,
+        cursor: String = "",
+        fallbackTname: String = ""
+    ): BiliPagedVideoList = exploreApi.getRegionDynamicChildVideos(
+        rid = rid,
+        cursor = cursor,
+        fallbackTname = fallbackTname
+    )
+
     /** 上报 B 站 Web 端播放心跳，计入用户最近播放历史；未登录时静默跳过 */
     suspend fun reportPlaybackHeartbeat(
         aid: Long,
