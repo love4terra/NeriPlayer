@@ -46,8 +46,7 @@ import org.json.JSONObject
 internal class BiliExploreApi(
     private val cookieRepo: BiliCookieSource,
     private val cookieSession: BiliCookieSession,
-    private val http: OkHttpClient,
-    private val nowMs: () -> Long = System::currentTimeMillis
+    private val http: OkHttpClient
 ) {
     suspend fun getRegionNewlistRankVideos(
         rid: Int,
@@ -57,7 +56,7 @@ internal class BiliExploreApi(
         fallbackTname: String = ""
     ): BiliPagedVideoList = withContext(Dispatchers.IO) {
         val safePage = page.coerceAtLeast(1)
-        val (timeFrom, timeTo) = buildRecentDateWindow(nowMs())
+        val (timeFrom, timeTo) = buildRecentDateWindow(System.currentTimeMillis())
         val url = NEWLIST_RANK_URL.toHttpUrl().newBuilder()
             .addQueryParameter("main_ver", "v3")
             .addQueryParameter("search_type", "video")
